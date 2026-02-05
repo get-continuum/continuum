@@ -22,6 +22,9 @@
   <a href="https://github.com/get-continuum/continuum/actions/workflows/ci.yml">
     <img src="https://github.com/get-continuum/continuum/actions/workflows/ci.yml/badge.svg" alt="CI" />
   </a>
+  <a href="https://app.netlify.com/projects/startling-twilight-f1d12a/deploys">
+    <img src="https://api.netlify.com/api/v1/badges/35a65314-33cd-4e84-84c3-3b64e11ea368/deploy-status" alt="Netlify Status" />
+  </a>
   <a href="https://www.npmjs.com/package/@get-continuum/sdk">
     <img src="https://img.shields.io/npm/v/@get-continuum/sdk?style=flat" alt="npm" />
   </a>
