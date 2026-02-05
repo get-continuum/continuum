@@ -1,6 +1,7 @@
 {
   "name": "@get-continuum/sdk",
   "version": "0.1.0",
+  "private": false,
   "description": "TypeScript SDK for Continuum (semantic resolution)",
   "license": "Apache-2.0",
   "author": "Continuum",
