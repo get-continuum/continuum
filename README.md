@@ -26,10 +26,10 @@
     <img src="https://api.netlify.com/api/v1/badges/35a65314-33cd-4e84-84c3-3b64e11ea368/deploy-status" alt="Netlify Status" />
   </a>
   <a href="https://www.npmjs.com/package/@get-continuum/sdk">
-    <img src="https://img.shields.io/npm/v/@get-continuum/sdk?style=flat" alt="npm" />
+    <img src="https://img.shields.io/npm/v/@get-continuum/sdk?style=flat&cacheSeconds=60" alt="npm" />
   </a>
   <a href="https://pypi.org/project/continuum-local/">
-    <img src="https://img.shields.io/pypi/v/continuum-local?style=flat" alt="PyPI" />
+    <img src="https://img.shields.io/pypi/v/continuum-local?style=flat&cacheSeconds=60" alt="PyPI" />
   </a>
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat" alt="License" />
   <img src="https://img.shields.io/badge/status-OSS--SDK-success?style=flat" alt="OSS SDK" />
