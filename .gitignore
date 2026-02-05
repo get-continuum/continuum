@@ -11,6 +11,7 @@ venv/
 dist/
 build/
 *.egg-info/
+packages/local-py/.venv_build/
 
 # mkdocs
 site/
@@ -19,6 +20,7 @@ site/
 node_modules/
 .pnpm-store/
 .yarn/
+*.tgz
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
