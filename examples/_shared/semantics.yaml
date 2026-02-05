@@ -1,0 +1,16 @@
+metrics:
+  - metric_id: revenue
+    canonical_name: Revenue
+    description: Net revenue excluding refunds
+    tags: [finance]
+
+  - metric_id: marketing_spend
+    canonical_name: Marketing Spend
+    description: Total paid media spend
+    tags: [marketing]
+
+  - metric_id: burn
+    canonical_name: Burn
+    description: Expenses (cash out) for the period
+    tags: [finance]
+

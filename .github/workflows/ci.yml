@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request: {}
+
+jobs:
+  ts_sdk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/sdk-ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: packages/sdk-ts/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+
+  py_local:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.12"]
+    defaults:
+      run:
+        working-directory: packages/local-py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+          cache-dependency-path: packages/local-py/pyproject.toml
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Smoke test
+        run: |
+          python -c "from continuum_local import load_semantics, resolve; import tempfile, pathlib; p=pathlib.Path(tempfile.gettempdir())/'sem.yaml'; p.write_text('metrics:\\n  - metric_id: revenue\\n    canonical_name: Revenue\\n    description: Net revenue\\n    tags: [marketing]\\n'); doc=load_semantics(str(p)); out=resolve(doc, query='revenue', context={'team':'marketing'}); assert out['status'] in ('resolved','ambiguous','no_match'); print('ok', out['status'])"
+
