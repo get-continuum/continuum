@@ -5,6 +5,8 @@ This is a minimal “Slack copilot” style example that runs **without a backen
 ## Run
 
 ```bash
+cd continuum-public/examples/slack_copilot
+
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -U pip

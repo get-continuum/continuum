@@ -171,7 +171,15 @@ pip install continuum-local
 Run the CLI:
 
 ```bash
-continuum-local resolve --semantics examples/_shared/semantics.yaml --query "revenue" --context '{"team":"finance"}'
+cat > semantics.yaml <<'EOF'
+metrics:
+  - metric_id: revenue
+    canonical_name: Revenue
+    description: Net revenue excluding refunds
+    tags: [finance]
+EOF
+
+continuum-local resolve --semantics semantics.yaml --query "revenue" --context '{"team":"finance"}'
 ```
 
 Or use it as a library:
@@ -179,7 +187,7 @@ Or use it as a library:
 ```python
 from continuum_local import load_semantics, resolve, to_semantic_contract
 
-doc = load_semantics("examples/_shared/semantics.yaml")
+doc = load_semantics("semantics.yaml")
 out = resolve(doc, query="revenue", context={"team": "finance"})
 
 if out.get("status") == "resolved":

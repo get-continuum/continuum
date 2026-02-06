@@ -11,7 +11,16 @@ pip install continuum-local
 ## CLI
 
 ```bash
-continuum-local resolve --semantics demo/semantics.yaml --query "revenue" --context '{"team":"marketing"}'
+# Create a minimal semantics file
+cat > semantics.yaml <<'EOF'
+metrics:
+  - metric_id: revenue
+    canonical_name: Revenue
+    description: Net revenue
+    tags: [marketing]
+EOF
+
+continuum-local resolve --semantics semantics.yaml --query "revenue" --context '{"team":"marketing"}'
 ```
 
 ## Library
@@ -19,7 +28,7 @@ continuum-local resolve --semantics demo/semantics.yaml --query "revenue" --cont
 ```python
 from continuum_local import load_semantics, resolve, to_semantic_contract
 
-doc = load_semantics("demo/semantics.yaml")
+doc = load_semantics("semantics.yaml")
 out = resolve(doc, query="revenue", context={"team": "marketing"})
 print(out)
 
