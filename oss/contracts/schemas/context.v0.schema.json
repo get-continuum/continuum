@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://getcontinuum.dev/schemas/context.v0.schema.json",
+  "title": "Decision Context",
+  "description": "Context object describing what triggered a Continuum Decision.",
+  "schema_version": "0.1.0",
+  "type": "object",
+  "required": ["trigger", "source", "timestamp"],
+  "properties": {
+    "trigger": {
+      "type": "string",
+      "description": "What triggered this decision (e.g., code_review, architecture_discussion)."
+    },
+    "source": {
+      "type": "string",
+      "description": "Where the decision originated (e.g., pull_request, slack_thread)."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the triggering event occurred."
+    },
+    "actor": {
+      "type": "string",
+      "description": "Who or what triggered the decision."
+    }
+  },
+  "additionalProperties": true
+}

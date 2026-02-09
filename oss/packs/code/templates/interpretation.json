@@ -1,0 +1,38 @@
+{
+  "$schema": "../../contracts/schemas/decision.v0.schema.json",
+  "id": "<decision-id>",
+  "version": 0,
+  "status": "active",
+  "title": "<Short title: how an ambiguous term/concept was interpreted>",
+  "rationale": "<Why this interpretation was chosen over alternatives>",
+  "options_considered": [
+    {
+      "id": "<chosen-interpretation-id>",
+      "title": "<The chosen interpretation>",
+      "selected": true,
+      "rejected_reason": null
+    },
+    {
+      "id": "<alt-interpretation-id>",
+      "title": "<An alternative interpretation that was considered>",
+      "selected": false,
+      "rejected_reason": "<Why this interpretation was not chosen>"
+    }
+  ],
+  "context": {
+    "trigger": "<What prompted the need for interpretation>",
+    "source": "<agent | human | pair>",
+    "timestamp": "<ISO-8601 timestamp>",
+    "actor": "<Who resolved the ambiguity>"
+  },
+  "enforcement": {
+    "scope": "<project/module/path>",
+    "decision_type": "interpretation",
+    "override_policy": "warn"
+  },
+  "stakeholders": ["<team-or-person>"],
+  "metadata": {
+    "interpreted_term": "<The ambiguous term or concept>",
+    "confidence": "<high | medium | low>"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "../../contracts/schemas/decision.v0.schema.json",
+  "id": "<decision-id>",
+  "version": 0,
+  "status": "active",
+  "title": "<Short title describing the rejected approach>",
+  "rationale": "<Why this option was rejected>",
+  "options_considered": [
+    {
+      "id": "<selected-option-id>",
+      "title": "<Title of the selected/preferred approach>",
+      "selected": true,
+      "rejected_reason": null
+    },
+    {
+      "id": "<rejected-option-id>",
+      "title": "<Title of the rejected approach>",
+      "selected": false,
+      "rejected_reason": "<Reason for rejection>"
+    }
+  ],
+  "context": {
+    "trigger": "<What triggered this decision>",
+    "source": "<agent | human | pair>",
+    "timestamp": "<ISO-8601 timestamp>",
+    "actor": "<Who made the decision>"
+  },
+  "enforcement": {
+    "scope": "<project/module/path>",
+    "decision_type": "rejection",
+    "override_policy": "invalid_by_default"
+  },
+  "stakeholders": ["<team-or-person>"],
+  "metadata": {}
+}

@@ -1,0 +1,41 @@
+{
+  "id": "dec_rev001",
+  "version": 0,
+  "status": "active",
+  "title": "Define 'revenue' as net revenue excluding refunds",
+  "created_at": "2025-02-01T14:00:00Z",
+  "updated_at": "2025-02-01T14:00:00Z",
+  "rationale": "The finance team needs a consistent definition of 'revenue' across all dashboards and reports. After analysis, net revenue (gross revenue minus refunds and chargebacks) best represents actual business performance and aligns with GAAP reporting requirements.",
+  "stakeholders": [
+    "finance-team",
+    "data-team",
+    "cfo"
+  ],
+  "metadata": {
+    "gaap_reference": "ASC 606",
+    "effective_quarter": "Q1-2025"
+  },
+  "options_considered": [
+    {
+      "id": "opt_net",
+      "title": "Net revenue — gross revenue minus refunds and chargebacks",
+      "selected": true
+    },
+    {
+      "id": "opt_gross",
+      "title": "Gross revenue — total invoiced amount before any deductions",
+      "selected": false,
+      "rejected_reason": "Overstates actual business performance; does not account for refunds."
+    }
+  ],
+  "context": {
+    "trigger": "quarterly_review",
+    "source": "finance_meeting",
+    "timestamp": "2025-01-30T10:00:00Z",
+    "actor": "bob@acme.com"
+  },
+  "scope": "team:finance",
+  "decision_type": "interpretation",
+  "precedence": 5,
+  "override_policy": "invalid_by_default"
+}
