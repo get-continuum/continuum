@@ -22,7 +22,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install jsonschema pydantic pytest ruff mypy typer
+        run: pip install jsonschema pydantic pytest ruff mypy typer types-jsonschema
 
       - name: Install SDK
         run: pip install -e oss/sdk/python

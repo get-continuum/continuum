@@ -7,7 +7,6 @@ Tests validate example JSON documents against their JSON Schemas using the
 - Schemas contain required meta fields.
 """
 
-import jsonschema
 import pytest
 from jsonschema import Draft202012Validator, ValidationError
 
