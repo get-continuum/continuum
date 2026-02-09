@@ -1,0 +1,114 @@
+---
+title: Ambiguity Gate
+description: How Continuum detects ambiguity and requests human clarification instead of guessing
+---
+
+## What is the Ambiguity Gate?
+
+The Ambiguity Gate is Continuum's mechanism for handling **uncertainty**. When an agent encounters a prompt where:
+
+- No prior decision exists for the relevant scope
+- Multiple conflicting decisions could apply
+- The prompt is vague enough that different interpretations would lead to different outcomes
+
+…the agent **pauses and asks for clarification** instead of silently guessing.
+
+## Why It Matters
+
+Without the Ambiguity Gate, agents make assumptions. Those assumptions might be wrong, and you won't know until the damage is done. The Ambiguity Gate turns silent assumptions into explicit questions.
+
+| Scenario | Without Continuum | With Ambiguity Gate |
+|----------|-------------------|---------------------|
+| "Set up the database" | Agent picks one at random | Agent asks: "Which database? PostgreSQL or DynamoDB?" |
+| "Use the standard auth" | Agent guesses OAuth2 | Agent asks: "Do you mean OAuth2, SAML, or API keys?" |
+| "Deploy to staging" | Agent uses last-known config | Agent asks: "Which staging environment? US-East or EU-West?" |
+
+## How It Works
+
+### Step 1: Resolve
+
+When an agent receives a prompt, it calls `resolve()` to check for prior decisions:
+
+```python
+from continuum import ContinuumClient
+
+client = ContinuumClient()
+
+result = client.resolve(
+    query="What database should we use for the new analytics service?",
+    scope="repo:acme/analytics",
+)
+```
+
+### Step 2: Check the Result
+
+```python
+if result["status"] == "resolved":
+    # A matching decision was found — proceed with it
+    decision = result["resolved_context"]
+    print(f"Using: {decision['title']}")
+
+elif result["status"] == "needs_clarification":
+    # Ambiguity detected — ask the human
+    clarification = result["clarification"]
+    print(f"Question: {clarification['question']}")
+    for candidate in clarification["candidates"]:
+        print(f"  - {candidate['title']}")
+```
+
+### Step 3: Commit the Clarification
+
+Once the human answers, the agent commits it as a new decision:
+
+```python
+decision = client.commit(
+    title="Use ClickHouse for analytics",
+    scope="repo:acme/analytics",
+    decision_type="preference",
+    options=[
+        {"title": "ClickHouse", "selected": True},
+        {"title": "PostgreSQL", "selected": False, "rejected_reason": "Not optimized for OLAP"},
+        {"title": "BigQuery", "selected": False, "rejected_reason": "Want self-hosted"},
+    ],
+    rationale="Analytics workload is OLAP-heavy. ClickHouse is purpose-built for this.",
+)
+```
+
+Now the next agent query about analytics databases will resolve immediately — no ambiguity, no guessing.
+
+## Providing Candidate Options
+
+You can supply candidate options to give the resolve function better context for disambiguation:
+
+```python
+from continuum.resolve import CandidateOption
+
+result = client.resolve(
+    query="What database should we use?",
+    scope="repo:acme/analytics",
+    candidates=[
+        {"id": "opt_ch", "title": "ClickHouse"},
+        {"id": "opt_pg", "title": "PostgreSQL"},
+        {"id": "opt_bq", "title": "BigQuery"},
+    ],
+)
+
+if result["status"] == "needs_clarification":
+    # The clarification will include these candidates
+    clarification = result["clarification"]
+    print(f"Question: {clarification['question']}")
+```
+
+## Ambiguity Scoring (Core Engine)
+
+With the Core engine installed, Continuum uses LLM-based ambiguity scoring to detect subtle cases:
+
+- **Interpretation ambiguity** — "revenue" could mean gross or net
+- **Scope ambiguity** — a decision exists at `repo:` level but the query targets a specific `folder:`
+- **Conflicting decisions** — two active decisions give opposing guidance
+
+The OSS layer provides basic keyword matching. The Core engine adds semantic understanding via the `AmbiguityScorer` hook.
+
+<Info>
+The Ambiguity Gate never blocks silently. It either resolves confidently or asks explicitly. There's no middle ground where the agent guesses.
+</Info>

@@ -1,0 +1,58 @@
+---
+title: LlamaIndex
+description: Add decision context to LlamaIndex query pipelines
+---
+
+## Overview
+
+The Continuum LlamaIndex integration provides an **adapter** that injects decision context into query pipelines. Before a query is processed, the adapter checks for prior decisions and enriches the context accordingly.
+
+## Installation
+
+```bash
+pip install continuum-sdk
+pip install continuum-llamaindex
+```
+
+## Usage
+
+### ToolSpec wrapper
+
+Use `ContinuumToolSpec` to expose Continuum operations as simple callables (which you can then wrap as tools in your LlamaIndex agent/runtime):
+
+```python
+from continuum_llamaindex import ContinuumToolSpec
+
+tools = ContinuumToolSpec(storage_dir=".continuum")
+
+resolution = tools.resolve(
+    prompt="What database should we use for the user service?",
+    scope="repo:acme/backend",
+)
+
+verdict = tools.enforce(
+    action={"type": "code_change", "description": "Do a full rewrite of auth module"},
+    scope="repo:acme/backend",
+)
+```
+
+## With RAG Pipelines
+
+Continuum works naturally with retrieval-augmented generation. Decisions act as **high-priority retrieved context**:
+
+```python
+from llama_index.core import VectorStoreIndex
+
+# Your regular RAG index
+index = VectorStoreIndex.from_documents(documents)
+query_engine = index.as_query_engine()
+
+# Add Continuum decisions as priority context
+enhanced_engine = adapter.wrap(query_engine)
+```
+
+Decision context is injected **before** retrieval results, so the LLM sees the decision first and treats it as authoritative.
+
+<Info>
+This integration is intentionally thin: it calls the stable SDK convenience methods (`inspect`, `resolve`, `enforce`, `commit`, `supersede`) against a repo-local `.continuum/` store.
+</Info>

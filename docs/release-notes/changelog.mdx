@@ -1,0 +1,69 @@
+---
+title: Changelog
+description: Release notes and version history
+---
+
+## v0.1.0 — Initial Release (Draft)
+
+<Note>
+Continuum is currently in active development. This is the initial draft release for early feedback.
+</Note>
+
+### What's Included
+
+**Contracts**
+- Decision JSON Schema v0.1.0 (JSON Schema Draft 2020-12)
+- Decision Status schema with lifecycle state machine
+- Context object schema
+- 4 example decisions (2 valid, 2 invalid for testing)
+- Full specification document (SPEC.md)
+
+**SDK (Python)**
+- `ContinuumClient` with local JSON storage
+- Pydantic models for all decision types
+- Schema validation and lifecycle state machine
+- Deterministic enforcement engine (`allow` / `confirm` / `block`)
+- Basic resolve flow with scope matching
+- Extension hooks (ABCs) for `AmbiguityScorer`, `DecisionCompiler`, `RiskScorer`
+
+**CLI**
+- `continuum inspect` — View decision details
+- `continuum commit` — Create new decisions
+- `continuum supersede` — Replace old decisions
+
+**MCP Server**
+- Tool stubs for `inspect`, `resolve`, `enforce`, `commit`
+
+**Integrations**
+- LangGraph node stubs (`resolve_node`, `enforce_node`, `commit_node`)
+- LlamaIndex adapter stub
+
+**Decision Packs**
+- Code workflow templates: `reject-option`, `interpretation`, `confirm-before`
+
+### Core Engine (BSL-1.1)
+
+- LLM-based `AmbiguityScorer` with heuristic fallback
+- LLM-based `DecisionCompiler` for rule extraction
+- LLM-based `RiskScorer` with scope heuristics
+- `IntentResolver` with memory-hit and candidate matching
+- `ContextResolver` with overlay-based resolution
+- Advanced policies: gradual rollout, team-scoped, override approval, temporal decay
+- Unified LLM client (OpenAI/Anthropic) with retry and fallback
+
+---
+
+_More releases coming soon. Watch the [GitHub repository](https://github.com/get-continuum/continuum) for updates._
+
+## v0.1.1 — Polish Release
+
+### What's Included
+
+**SDK (Python)**
+- Stable convenience methods: `inspect`, `resolve`, `enforce`, `supersede`
+- Deterministic scope-chain matching (supports wildcard filters like `repo:*`)
+- Enforced `override_policy` semantics (`invalid_by_default` blocks, `warn` warns, `allow` passes)
+
+**Docs + Examples**
+- Installation instructions now use `pip install continuum-sdk`
+- Root `examples/flagship-demo/flagship_demo.py` wrapper for quick demo runs

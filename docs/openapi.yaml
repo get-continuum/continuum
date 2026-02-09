@@ -1,0 +1,368 @@
+openapi: 3.1.0
+info:
+  title: Continuum API
+  description: Decision Control Plane for AI Agents
+  version: 0.1.0
+  contact:
+    name: Continuum
+    url: https://github.com/get-continuum/continuum
+
+servers:
+  - url: https://api.continuum.dev/v1
+    description: Production
+  - url: http://localhost:8080/v1
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+paths:
+  /decisions:
+    post:
+      operationId: createDecision
+      summary: Create a decision
+      description: Commit a new decision to the store.
+      tags:
+        - Decisions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDecisionRequest"
+      responses:
+        "201":
+          description: Decision created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Decision"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
+    get:
+      operationId: listDecisions
+      summary: List decisions
+      description: List decisions with optional filters.
+      tags:
+        - Decisions
+      parameters:
+        - name: scope
+          in: query
+          schema:
+            type: string
+          description: Filter by scope (e.g., "repo:acme/backend")
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, active, superseded, archived]
+          description: Filter by lifecycle status
+        - name: decision_type
+          in: query
+          schema:
+            type: string
+            enum: [interpretation, rejection, preference, behavior_rule]
+          description: Filter by decision type
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+          description: Maximum number of results
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Pagination offset
+      responses:
+        "200":
+          description: List of decisions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  decisions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Decision"
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        "401":
+          description: Unauthorized
+
+  /decisions/{id}:
+    get:
+      operationId: getDecision
+      summary: Get a decision
+      description: Retrieve a decision by its unique ID.
+      tags:
+        - Decisions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^dec_[a-zA-Z0-9]+$"
+          description: Decision ID
+      responses:
+        "200":
+          description: Decision details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Decision"
+        "404":
+          description: Decision not found
+        "401":
+          description: Unauthorized
+
+  /resolve:
+    post:
+      operationId: resolve
+      summary: Resolve a prompt against prior decisions
+      description: Check if a prior decision covers the given prompt and scope.
+      tags:
+        - Resolution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveRequest"
+      responses:
+        "200":
+          description: Resolution result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolveResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
+  /enforce:
+    post:
+      operationId: enforce
+      summary: Enforce a decision against an action
+      description: Evaluate enforcement rules for a decision against the given action context.
+      tags:
+        - Enforcement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnforceRequest"
+      responses:
+        "200":
+          description: Enforcement verdict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnforceResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    CreateDecisionRequest:
+      type: object
+      required:
+        - title
+        - scope
+        - decision_type
+        - options
+      properties:
+        title:
+          type: string
+          description: Human-readable title
+        scope:
+          type: string
+          description: "Where this decision applies (e.g., repo:acme/backend)"
+        decision_type:
+          type: string
+          enum: [interpretation, rejection, preference, behavior_rule]
+          description: Category of decision
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/Option"
+          minItems: 1
+          description: Options considered
+        rationale:
+          type: string
+          description: Explanation of why this decision was made
+        override_policy:
+          type: string
+          enum: [invalid_by_default, warn, allow]
+          default: invalid_by_default
+          description: What happens when a rejected option is encountered
+        supersedes:
+          type: string
+          pattern: "^dec_[a-zA-Z0-9]+$"
+          description: ID of the decision this one replaces
+        precedence:
+          type: integer
+          description: Priority level for conflict resolution
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Arbitrary key-value metadata
+
+    Decision:
+      type: object
+      properties:
+        id:
+          type: string
+          pattern: "^dec_[a-zA-Z0-9]+$"
+        version:
+          type: integer
+        status:
+          type: string
+          enum: [draft, active, superseded, archived]
+        title:
+          type: string
+        scope:
+          type: string
+        decision_type:
+          type: string
+          enum: [interpretation, rejection, preference, behavior_rule]
+        options_considered:
+          type: array
+          items:
+            $ref: "#/components/schemas/Option"
+        rationale:
+          type: string
+        override_policy:
+          type: string
+          enum: [invalid_by_default, warn, allow]
+        supersedes:
+          type: string
+        precedence:
+          type: integer
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Option:
+      type: object
+      required:
+        - title
+        - selected
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        selected:
+          type: boolean
+        rejected_reason:
+          type: string
+
+    ResolveRequest:
+      type: object
+      required:
+        - prompt
+        - scope
+      properties:
+        prompt:
+          type: string
+          description: The agent's prompt to resolve
+        scope:
+          type: string
+          description: The scope to search for prior decisions
+
+    ResolveResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [resolved, needs_clarification]
+        decision:
+          $ref: "#/components/schemas/Decision"
+          description: The matching decision (if resolved)
+        suggested_question:
+          type: string
+          description: Suggested clarification question (if needs_clarification)
+        suggested_options:
+          type: array
+          items:
+            type: string
+          description: Suggested options to present to the user
+
+    EnforceRequest:
+      type: object
+      required:
+        - decision_id
+        - action_context
+      properties:
+        decision_id:
+          type: string
+          pattern: "^dec_[a-zA-Z0-9]+$"
+          description: ID of the decision to enforce
+        action_context:
+          type: object
+          additionalProperties: true
+          description: Context about the action being evaluated
+
+    EnforceResponse:
+      type: object
+      properties:
+        outcome:
+          type: string
+          enum: [allow, confirm, block]
+          description: The enforcement verdict
+        reason:
+          type: string
+          description: Human-readable explanation of the verdict
+        decision_id:
+          type: string
+          description: ID of the decision that produced this verdict
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object

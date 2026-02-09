@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "continuum-llamaindex"
+version = "0.1.1"
+description = "LlamaIndex integration for the Continuum decision control plane"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dependencies = [
+    "continuum-sdk>=0.1.1",
+]
+
+[project.optional-dependencies]
+llamaindex = [
+    "llama-index",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

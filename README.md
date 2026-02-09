@@ -25,8 +25,7 @@ core/           Engine implementations (BSL-1.1)
 ## Quick start
 
 ```bash
-pip install -e oss/sdk/python
-pip install -e oss/cli
+pip install continuum-sdk
 ```
 
 ```python
@@ -38,11 +37,22 @@ decision = client.commit(
     scope="repo:acme/backend",
     decision_type="rejection",
     options=[
-        {"title": "PostgreSQL", "selected": True},
-        {"title": "MongoDB", "selected": False, "rejected_reason": "No ACID"},
+        {"id": "opt_postgres", "title": "PostgreSQL", "selected": True},
+        {
+            "id": "opt_mongo",
+            "title": "MongoDB",
+            "selected": False,
+            "rejected_reason": "No ACID",
+        },
     ],
     rationale="Need ACID transactions for billing data.",
 )
+```
+
+Run the flagship demo:
+
+```bash
+python examples/flagship-demo/flagship_demo.py
 ```
 
 ## OSS boundary

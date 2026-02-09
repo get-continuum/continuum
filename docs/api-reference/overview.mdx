@@ -1,0 +1,196 @@
+---
+title: API Reference
+description: SDK API, REST endpoints, and MCP tool schema reference
+---
+
+## Python SDK API
+
+The primary interface for interacting with Continuum is the `ContinuumClient` class.
+
+### `ContinuumClient`
+
+```python
+from continuum import ContinuumClient
+
+# Default: stores decisions in .continuum/ in current directory
+client = ContinuumClient()
+
+# Custom storage directory
+client = ContinuumClient(storage_dir="/path/to/decisions")
+```
+
+### `client.commit()`
+
+Create and persist a new decision. Returns a `Decision` object with status `draft`.
+
+```python
+decision = client.commit(
+    title="Use PostgreSQL for user store",
+    scope="repo:acme/backend",
+    decision_type="rejection",          # interpretation | rejection | preference | behavior_rule
+    options=[
+        {"title": "PostgreSQL", "selected": True},
+        {"title": "MongoDB", "selected": False, "rejected_reason": "No ACID"},
+    ],
+    rationale="Need ACID transactions for billing data.",
+    stakeholders=["alice", "bob"],      # optional
+    metadata={"source": "architecture-review"},  # optional
+)
+```
+
+### `client.get(decision_id)`
+
+Retrieve a single decision by ID. Raises `DecisionNotFoundError` if not found.
+
+```python
+decision = client.get("dec_abc123def4")
+```
+
+### `client.list_decisions(scope=None)`
+
+List all persisted decisions, optionally filtered by enforcement scope.
+
+```python
+all_decisions = client.list_decisions()
+scoped = client.list_decisions(scope="repo:acme/backend")
+```
+
+### `client.inspect(scope)`
+
+Return all **active** decisions for a scope as plain dicts (the "binding set").
+
+```python
+active = client.inspect("repo:acme/backend")
+# Returns: list[dict]
+```
+
+### `client.update_status(decision_id, new_status)`
+
+Transition a decision to a new lifecycle status. Raises `TransitionError` for invalid transitions.
+
+```python
+activated = client.update_status("dec_abc123def4", "active")
+```
+
+### `client.enforce(action, scope)`
+
+Evaluate an action against active decisions in a scope. Returns a dict with `verdict`, `reason`, `matched_decisions`, and `required_confirmations`.
+
+```python
+result = client.enforce(
+    action={"type": "generic", "description": "select MongoDB"},
+    scope="repo:acme/backend",
+)
+# result["verdict"]: "allow" | "block" | "confirm" | "override"
+```
+
+### `client.resolve(query, scope, candidates=None)`
+
+Run the ambiguity gate for a query. Returns a dict with `status` (`"resolved"` or `"needs_clarification"`).
+
+```python
+result = client.resolve(
+    query="What database should we use?",
+    scope="repo:acme/backend",
+    candidates=[{"id": "opt_1", "title": "PostgreSQL"}],  # optional
+)
+```
+
+### `client.supersede(old_id, new_title, **kwargs)`
+
+Supersede an existing decision and commit a replacement. The old decision transitions to `superseded` and a new one is created and activated.
+
+```python
+new_decision = client.supersede(
+    old_id="dec_old123",
+    new_title="Switch to DynamoDB",
+    options=[{"title": "DynamoDB", "selected": True}],
+    rationale="Better fit for our workload.",
+)
+```
+
+## Enforcement Engine
+
+For direct access to the enforcement engine:
+
+```python
+from continuum.enforce import EnforcementEngine, Action, ActionType
+
+engine = EnforcementEngine(decisions)  # list of Decision objects or dicts
+
+action = Action(
+    type=ActionType.generic,      # generic | code_change | migration | api_break | deployment | config_change
+    description="select MongoDB",
+    scope="repo:acme/backend",
+    metadata={},
+)
+
+result = engine.evaluate(action)
+# result.verdict: EnforcementVerdict (allow | block | confirm | override)
+# result.reason: str
+# result.matched_decisions: list[str]
+# result.required_confirmations: list[str]
+```
+
+## Extension Hooks
+
+The SDK defines abstract base classes for pluggable implementations:
+
+```python
+from continuum.hooks import AmbiguityScorer, DecisionCompiler, RiskScorer
+```
+
+| Hook | Method | Returns |
+|------|--------|---------|
+| `AmbiguityScorer` | `score(decision) -> float` | 0.0 (clear) to 1.0 (ambiguous) |
+| `DecisionCompiler` | `compile(decision) -> dict` | Compiled enforcement rules |
+| `RiskScorer` | `score(decision, context) -> float` | 0.0 (safe) to 1.0 (risky) |
+
+These are implemented by the Core engine (`core/`).
+
+## REST API
+
+Continuum exposes a REST API for managing decisions programmatically (when running a server).
+
+### Base URL
+
+```
+https://api.continuum.dev/v1
+```
+
+For local development:
+
+```
+http://localhost:8080/v1
+```
+
+### Authentication
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/decisions` | Create a new decision |
+| `GET` | `/decisions/{id}` | Retrieve a decision by ID |
+| `GET` | `/decisions` | List decisions (supports `scope`, `status`, `decision_type`, `limit`, `offset` filters) |
+| `POST` | `/resolve` | Check for prior decisions matching a prompt |
+| `POST` | `/enforce` | Evaluate enforcement rules against an action |
+
+## MCP Tool Schema
+
+When using the MCP Server, these tools are available to connected agents. See [MCP Server integration](/integrations/mcp) for setup.
+
+| Tool | Description |
+|------|-------------|
+| `continuum_resolve` | Check for prior decisions |
+| `continuum_enforce` | Evaluate enforcement rules |
+| `continuum_commit` | Persist a new decision |
+| `continuum_inspect` | View decision details |
+
+## OpenAPI Specification
+
+The full OpenAPI spec is available in `docs/openapi.yaml` in the repository.

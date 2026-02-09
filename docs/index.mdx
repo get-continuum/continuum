@@ -1,0 +1,120 @@
+---
+title: Welcome to Continuum
+description: Decision Control Plane for AI Agents
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="Continuum Hero"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="Continuum Hero"
+/>
+
+## What is Continuum?
+
+Continuum is a **Decision Control Plane for AI Agents**. It captures, enforces, and resolves decisions so AI agents behave consistently across prompts, sessions, and teams.
+
+Instead of letting each agent prompt produce unpredictable, context-free outputs, Continuum gives agents a structured memory of past decisions and a deterministic enforcement layer that ensures consistency.
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/open-source/install"
+  >
+    Install the SDK and make your first decision in under 5 minutes.
+  </Card>
+  <Card
+    title="Decision Contracts"
+    icon="file-contract"
+    href="/concepts/decision-contracts"
+  >
+    Understand the core data model — Decisions, Options, Rationale, and Scopes.
+  </Card>
+  <Card
+    title="Cookbooks"
+    icon="book-open"
+    href="/cookbooks/flagship-same-prompt"
+  >
+    End-to-end walkthroughs showing Continuum in real agent workflows.
+  </Card>
+  <Card
+    title="API Reference"
+    icon="rectangle-terminal"
+    href="/api-reference/overview"
+  >
+    Full REST and MCP tool schema reference.
+  </Card>
+</CardGroup>
+
+## Why Continuum?
+
+AI agents today are **stateless by default**. Ask the same question twice and you might get two different answers. Reject an approach in one session and it reappears in the next.
+
+Continuum fixes this by giving agents a **shared decision memory** with deterministic enforcement:
+
+- **Capture** — Record decisions with full context: what was chosen, what was rejected, and why.
+- **Enforce** — Deterministic rules produce `allow`, `confirm`, or `block` verdicts. No heuristics, no surprises.
+- **Resolve** — Before an agent acts, it checks for prior decisions. If a matching decision exists, the agent follows it. If ambiguity is detected, clarification is requested.
+
+## How it works
+
+```
+prompt  ──►  resolve()  ──►  enforce()  ──►  commit()
+               │                 │                │
+        check prior        apply rules       persist
+        decisions          (allow/confirm/    decision
+                            block)
+```
+
+1. **Resolve** — The agent's prompt is checked against existing decisions. If a match is found, its context is returned.
+2. **Enforce** — The resolved context is evaluated against enforcement rules. The verdict determines whether the agent can proceed.
+3. **Commit** — Once approved, the decision is persisted with a full audit trail.
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     AI Agent / IDE                            │
+│   (Cursor, Copilot, LangGraph pipeline, custom agent)        │
+└────────────────────┬─────────────────────────────────────────┘
+                     │  prompt / action
+                     ▼
+┌──────────────────────────────────────────────────────────────┐
+│                   Continuum SDK (OSS)                         │
+│                                                              │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐  │
+│  │  Resolve  │  │ Enforce  │  │  Commit  │  │  Inspect   │  │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └─────┬──────┘  │
+│       │              │              │              │          │
+│  ┌────▼──────────────▼──────────────▼──────────────▼───────┐ │
+│  │             Decision Store (local JSON / API)            │ │
+│  └──────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────┘
+                     │
+                     │  hooks (ABCs)
+                     ▼
+┌──────────────────────────────────────────────────────────────┐
+│                 Continuum Engine (Core)                       │
+│                                                              │
+│  ┌────────────────┐  ┌───────────────┐  ┌────────────────┐  │
+│  │AmbiguityScorer │  │DecisionCompiler│  │  RiskScorer    │  │
+│  │  (LLM-based)   │  │  (LLM-based)  │  │  (LLM-based)  │  │
+│  └────────────────┘  └───────────────┘  └────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+## OSS + Core
+
+Continuum is split into two layers:
+
+| Layer | License | What it includes |
+|-------|---------|------------------|
+| **OSS** (`oss/`) | Apache-2.0 | Contracts, SDK, CLI, MCP server, integrations — all deterministic |
+| **Core** (`core/`) | BSL-1.1 | LLM-based scorers, compiler, advanced policies, intent resolver |
+
+The OSS layer **never** imports from Core. Extension points are defined as abstract base classes in the SDK. Core provides the implementations.

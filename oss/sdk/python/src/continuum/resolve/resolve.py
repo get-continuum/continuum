@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from continuum.resolve.types import CandidateOption, ClarificationRequest, ResolveResult
+from continuum.scope import scope_matches, scope_specificity
 
 
 def resolve(
@@ -33,25 +34,43 @@ def resolve(
         Either ``status="resolved"`` with the matched decision data,
         or ``status="needs_clarification"`` with a clarification request.
     """
-    query_lower = query.lower()
+    query_lower = query.lower().strip()
 
+    matches: list[dict] = []
     for decision in decisions:
-        decision_scope = _get_scope(decision)
-        if decision_scope != scope:
+        if decision.get("status") != "active":
             continue
 
-        # Match on title keywords
-        title = decision.get("title", "").lower()
+        decision_scope = _get_scope(decision)
+        if not scope_matches(decision_scope, scope):
+            continue
+
+        title = decision.get("title", "").lower().strip()
         if not title:
             continue
 
-        # Exact substring match: query words appear in title or vice-versa
         if title in query_lower or query_lower in title:
-            return ResolveResult(
-                status="resolved",
-                resolved_context=decision,
-                matched_decision_id=decision.get("id"),
+            matches.append(decision)
+
+    if matches:
+        def _rank(d: dict) -> tuple[int, int, str]:
+            enforcement = d.get("enforcement") or {}
+            if not isinstance(enforcement, dict):
+                enforcement = {}
+            precedence = int(enforcement.get("precedence") or 0)
+            created_at = str(d.get("created_at") or "")
+            return (
+                scope_specificity(_get_scope(d)),
+                precedence,
+                created_at,
             )
+
+        best = max(matches, key=_rank)
+        return ResolveResult(
+            status="resolved",
+            resolved_context=best,
+            matched_decision_id=best.get("id"),
+        )
 
     # No matching decision found
     if candidates:

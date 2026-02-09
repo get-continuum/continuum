@@ -1,0 +1,126 @@
+---
+title: LangGraph
+description: Add decision enforcement to LangGraph agent pipelines
+---
+
+## Overview
+
+The Continuum LangGraph integration provides pre-built **nodes** that you can drop into any LangGraph graph to add decision resolution, enforcement, and commit.
+
+## Installation
+
+```bash
+pip install continuum-sdk
+pip install continuum-langgraph langgraph
+```
+
+The nodes live in the installable package `continuum_langgraph` (and are also mirrored in `oss/integrations/langgraph/nodes.py` for repo-local browsing).
+
+## Node Interface
+
+### `resolve_node`
+
+Checks for prior decisions before the agent acts.
+
+```python
+# In your graph definition
+from continuum import ContinuumClient
+
+def resolve_node(state):
+    """Check for prior decisions matching the current prompt."""
+    client = ContinuumClient()
+    result = client.resolve(
+        query=state["prompt"],
+        scope=state["scope"],
+    )
+    return {**state, "resolution": result}
+```
+
+**Input state**: expects `prompt` and `scope` in the graph state.
+
+**Output state**: adds `resolution` with `status` (`"resolved"` or `"needs_clarification"`) and the matched decision context if found.
+
+### `enforce_node`
+
+Evaluates enforcement rules against the current action.
+
+```python
+def enforce_node(state):
+    """Evaluate enforcement rules against the proposed action."""
+    client = ContinuumClient()
+    result = client.enforce(
+        action=state["action"],
+        scope=state["scope"],
+    )
+    return {**state, "verdict": result}
+```
+
+**Input state**: expects `action` dict and `scope` in the graph state.
+
+**Output state**: adds `verdict` with `verdict` (`"allow"`, `"confirm"`, `"block"`, or `"override"`).
+
+### `commit_node`
+
+Persists a new decision after human approval.
+
+```python
+def commit_node(state):
+    """Commit a new decision based on the agent's output."""
+    client = ContinuumClient()
+    decision = client.commit(
+        title=state["decision_title"],
+        scope=state["scope"],
+        decision_type=state["decision_type"],
+        options=state.get("options", []),
+        rationale=state.get("rationale"),
+    )
+    return {**state, "committed_decision": decision.id}
+```
+
+## Example Graph
+
+```python
+from langgraph.graph import StateGraph
+
+# Define graph
+graph = StateGraph(AgentState)
+
+graph.add_node("resolve", resolve_node)
+graph.add_node("plan", plan_node)          # Your planning logic
+graph.add_node("enforce", enforce_node)
+graph.add_node("execute", execute_node)    # Your execution logic
+graph.add_node("commit", commit_node)
+
+# Edges
+graph.add_edge("resolve", "plan")
+graph.add_edge("plan", "enforce")
+graph.add_conditional_edges("enforce", check_verdict, {
+    "allow": "execute",
+    "confirm": "human_review",
+    "block": "rejected",
+})
+graph.add_edge("execute", "commit")
+
+app = graph.compile()
+```
+
+## Conditional Routing
+
+Use the enforcement verdict to route the graph:
+
+```python
+def check_verdict(state):
+    verdict = state["verdict"]
+    if verdict["verdict"] == "allow":
+        return "allow"
+    elif verdict["verdict"] == "confirm":
+        return "confirm"
+    else:
+        return "block"
+```
+
+This gives you **human-in-the-loop** control: high-risk actions route to human review, while known-safe actions proceed automatically.
+
+<Tip>
+Place `resolve_node` at the **start** of your graph so every agent run begins by checking for prior decisions.
+</Tip>

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Continuum",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#7C3AED",
+    "light": "#A78BFA",
+    "dark": "#5B21B6"
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/get-continuum/continuum"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started",
+    "url": "/open-source/install"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Start Here",
+        "pages": [
+          "index",
+          "concepts/decision-contracts",
+          "concepts/scope-precedence"
+        ]
+      },
+      {
+        "group": "Open Source",
+        "pages": [
+          "open-source/overview",
+          "open-source/install",
+          "open-source/local-mode"
+        ]
+      },
+      {
+        "group": "Continuum for Code",
+        "pages": [
+          "for-code/quickstart",
+          "for-code/rejections",
+          "for-code/ambiguity-gate",
+          "for-code/inspector-diffs"
+        ]
+      },
+      {
+        "group": "Cookbooks",
+        "pages": [
+          "cookbooks/flagship-same-prompt",
+          "cookbooks/plan-mode-complement",
+          "cookbooks/multi-agent-code"
+        ]
+      },
+      {
+        "group": "Integrations",
+        "pages": [
+          "integrations/langgraph",
+          "integrations/llamaindex",
+          "integrations/mcp",
+          "integrations/bring-your-memory"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api-reference/overview"
+        ]
+      },
+      {
+        "group": "Release Notes",
+        "pages": [
+          "release-notes/changelog"
+        ]
+      }
+    ]
+  },
+  "footerSocials": {
+    "github": "https://github.com/get-continuum/continuum"
+  }
+}

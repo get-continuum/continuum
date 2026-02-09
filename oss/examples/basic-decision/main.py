@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Basic Decision example for Continuum.
 
-Demonstrates: commit -> inspect -> transition.
+Demonstrates: commit -> get -> transition -> inspect.
 """
 
 from __future__ import annotations
@@ -21,8 +21,9 @@ def main() -> None:
         scope="repo:acme/backend",
         decision_type="rejection",
         options=[
-            {"title": "PostgreSQL", "selected": True},
+            {"id": "opt_postgres", "title": "PostgreSQL", "selected": True},
             {
+                "id": "opt_mongo",
                 "title": "MongoDB",
                 "selected": False,
                 "rejected_reason": "No ACID guarantees",
@@ -32,19 +33,26 @@ def main() -> None:
     )
     print(f"   Decision committed: {decision.id}\n")
 
-    # 2. Inspect the decision
-    print("2. Inspecting decision...")
-    inspected = client.inspect(decision.id)
-    print(f"   Title: {inspected.title}")
-    print(f"   Scope: {inspected.scope}")
-    print(f"   Status: {inspected.status}\n")
+    # 2. Get the decision by ID
+    print("2. Getting decision...")
+    loaded = client.get(decision.id)
+    print(f"   Title: {loaded.title}")
+    print(f"   Scope: {loaded.enforcement.scope}")
+    print(f"   Status: {loaded.status}\n")
 
-    # 3. Transition the decision
-    print("3. Transitioning decision...")
-    updated = client.transition(decision.id, to="active")
+    # 3. Transition the decision to active
+    print("3. Transitioning decision to active...")
+    updated = client.update_status(decision.id, "active")
     print(f"   New status: {updated.status}\n")
 
-    print("Done.")
+    # 4. Inspect active decisions in scope
+    print("4. Inspecting active decisions...")
+    binding = client.inspect("repo:acme/backend")
+    print(f"   Active decisions: {len(binding)}")
+    for d in binding:
+        print(f"     - {d['title']}")
+
+    print("\nDone.")
 
 
 if __name__ == "__main__":

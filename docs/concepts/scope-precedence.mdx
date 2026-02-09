@@ -1,0 +1,114 @@
+---
+title: Scope & Precedence
+description: How decisions are scoped, prioritized, and resolved when they conflict
+---
+
+## Scopes
+
+The `scope` field defines **where** a decision applies. Scopes use a prefix-based format that supports hierarchical resolution.
+
+| Scope Prefix | Example | Description |
+|-------------|---------|-------------|
+| `repo:` | `repo:acme/backend` | Applies to a specific repository |
+| `folder:` | `folder:src/api/auth` | Applies to a specific folder path |
+| `user:` | `user:alice` | Applies to a specific user's work |
+| `workflow:` | `workflow:ci/deploy` | Applies to a specific workflow or pipeline |
+| `team:` | `team:finance` | Applies to a specific team |
+
+### Scope Hierarchy
+
+Scopes are **hierarchical** — a `repo:` scope is broader than a `folder:` scope within that repo. When decisions conflict, the more specific scope takes precedence by default.
+
+```
+team:platform         (broadest)
+  └── repo:acme/backend
+       └── folder:src/api/auth
+            └── user:alice     (most specific)
+```
+
+<Info>
+Think of scopes like CSS specificity — more specific selectors override broader ones.
+</Info>
+
+## Precedence
+
+When multiple active decisions could apply to the same context, Continuum resolves conflicts using a three-tier system:
+
+### 1. Scope Specificity
+
+More specific scopes win. A `folder:` decision overrides a `repo:` decision for the same topic.
+
+```python
+# This decision applies broadly
+decision_a = client.commit(
+    title="Use PostgreSQL for all services",
+    scope="repo:acme/backend",
+    decision_type="preference",
+    rationale="Team default database.",
+)
+
+# This decision is more specific — it wins for src/api/auth
+decision_b = client.commit(
+    title="Use DynamoDB for auth tokens",
+    scope="folder:src/api/auth",
+    decision_type="preference",
+    rationale="Auth tokens need fast key-value lookups.",
+)
+```
+
+### 2. Precedence Value
+
+Among decisions at the same scope level, a higher `precedence` integer wins. Precedence is set on the `Enforcement` model:
+
+```python
+from continuum.models import Enforcement
+
+# Decisions at the same scope level are resolved by precedence
+# The enforcement.precedence field controls priority
+```
+
+### 3. Recency
+
+If scope and precedence are equal, the most recently activated decision wins (by `created_at`).
+
+## Supersession
+
+A decision can **explicitly supersede** another using the `supersede()` method:
+
+```python
+new_decision = client.supersede(
+    old_id="dec_old123",
+    new_title="Switch to DynamoDB for session store",
+    decision_type="rejection",
+    options=[
+        {"title": "DynamoDB", "selected": True},
+        {"title": "Redis", "selected": False, "rejected_reason": "Cost at scale"},
+    ],
+    rationale="DynamoDB serverless pricing is better for our traffic pattern.",
+)
+```
+
+When supersession happens:
+
+1. The old decision transitions to `superseded` status
+2. The new decision is committed and automatically activated
+3. The old decision is retained for audit history
+
+## Ambiguity Gate
+
+When Continuum detects that a query falls into an area where **no decision exists** or where **multiple conflicting decisions** could apply, it triggers the **Ambiguity Gate**.
+
+Instead of guessing, the agent pauses and requests human clarification:
+
+```python
+result = client.resolve(
+    query="What database should we use for the new analytics service?",
+    scope="repo:acme/analytics",
+)
+
+if result["status"] == "needs_clarification":
+    clarification = result["clarification"]
+    print(f"Question: {clarification['question']}")
+```
+
+The Ambiguity Gate ensures agents never silently make assumptions about unresolved topics.

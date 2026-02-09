@@ -1,0 +1,148 @@
+---
+title: "Same Prompt, Different Behavior"
+description: The flagship demo — same prompt produces different agent behavior depending on prior decisions
+---
+
+## Overview
+
+This cookbook demonstrates Continuum's core value proposition: **the same prompt produces different agent behavior depending on prior decisions**.
+
+Without Continuum, every prompt is stateless. With Continuum, the agent checks for prior decisions, enforces consistency, and only asks for clarification when genuinely needed.
+
+## Prerequisites
+
+- Continuum SDK installed (`pip install continuum-sdk`)
+- (Optional) Core engine for LLM-backed resolution
+
+## The Scenario
+
+Two developers send the **exact same prompt** to an AI coding agent:
+
+> "Set up the database for the user service."
+
+- **Developer A** already made a decision: "Use PostgreSQL for user store"
+- **Developer B** works on a different repo with no prior decisions
+
+## Setup
+
+```python
+from continuum import ContinuumClient
+
+client = ContinuumClient()
+
+# Developer A committed a decision last week
+decision = client.commit(
+    title="Use PostgreSQL for user store",
+    scope="repo:acme/backend",
+    decision_type="rejection",
+    options=[
+        {"title": "PostgreSQL", "selected": True},
+        {"title": "MongoDB", "selected": False, "rejected_reason": "No ACID"},
+    ],
+    rationale="Need ACID transactions for billing data.",
+)
+
+# Activate it so enforcement takes effect
+client.update_status(decision.id, "active")
+```
+
+## Developer A's Experience
+
+```python
+# Agent receives: "Set up the database for the user service."
+result = client.resolve(
+    query="Set up the database for the user service.",
+    scope="repo:acme/backend",
+)
+
+print(result["status"])
+# → "resolved"
+
+print(result["resolved_context"]["title"])
+# → "Use PostgreSQL for user store"
+```
+
+The agent **immediately knows** to use PostgreSQL. No guessing. No re-asking. The prior decision resolves the ambiguity.
+
+```
+Agent: "Setting up PostgreSQL for the user service.
+       (Based on decision: 'Use PostgreSQL for user store')"
+```
+
+## Developer B's Experience
+
+```python
+# Same prompt, different scope (no prior decisions)
+result = client.resolve(
+    query="Set up the database for the user service.",
+    scope="repo:newco/api",
+)
+
+print(result["status"])
+# → "needs_clarification"
+
+clarification = result["clarification"]
+print(clarification["question"])
+# → "No prior decision found. Please clarify intent."
+```
+
+The agent **doesn't guess**. It detects that no decision covers this scope and asks:
+
+```
+Agent: "I don't have a prior decision for database selection in this repo.
+       Which database would you like to use?
+       - PostgreSQL
+       - MongoDB
+       - DynamoDB"
+```
+
+Once Developer B answers, the choice is committed as a new decision — and the next query resolves immediately.
+
+## The Key Insight
+
+| | Without Continuum | With Continuum |
+|-|-------------------|----------------|
+| **Developer A** | Agent might pick MongoDB this time | Agent uses PostgreSQL (enforced) |
+| **Developer B** | Agent picks randomly | Agent asks, then remembers |
+| **Next session** | Both developers start from zero | Decisions persist — agents are consistent |
+
+## Running the Full Demo
+
+```python
+from continuum import ContinuumClient
+
+client = ContinuumClient()
+
+# --- Developer A: decision already exists ---
+decision = client.commit(
+    title="Use PostgreSQL for user store",
+    scope="repo:acme/backend",
+    decision_type="rejection",
+    options=[
+        {"title": "PostgreSQL", "selected": True},
+        {"title": "MongoDB", "selected": False, "rejected_reason": "No ACID"},
+    ],
+    rationale="Need ACID transactions for billing data.",
+)
+client.update_status(decision.id, "active")
+
+# Resolve — finds prior decision
+res_a = client.resolve(
+    query="Set up the database for the user service.",
+    scope="repo:acme/backend",
+)
+assert res_a["status"] == "resolved"
+print(f"Dev A: {res_a['resolved_context']['title']}")
+
+# --- Developer B: no decision exists ---
+res_b = client.resolve(
+    query="Set up the database for the user service.",
+    scope="repo:newco/api",
+)
+assert res_b["status"] == "needs_clarification"
+print(f"Dev B: {res_b['clarification']['question']}")
+```
+
+<Note>
+This is the demo to show stakeholders when explaining Continuum. It's the fastest way to communicate the value proposition.
+</Note>

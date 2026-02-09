@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from continuum.enforce.types import Action, ActionType, EnforcementResult, EnforcementVerdict
+from continuum.scope import scope_matches
 
 
 class EnforcementEngine:
@@ -52,11 +53,22 @@ class EnforcementEngine:
 
             # Rule A: action matches a rejected option → block
             if self._action_matches_rejected_option(action, decision):
-                verdicts.append((
-                    EnforcementVerdict.block,
-                    f"Action matches rejected option in decision '{decision_id}'",
-                    decision_id,
-                ))
+                override_policy = self._get_override_policy(decision)
+                if override_policy == "allow":
+                    # Informational only.
+                    continue
+                if override_policy == "warn":
+                    verdicts.append((
+                        EnforcementVerdict.confirm,
+                        f"WARNING: Action matches rejected option in decision '{decision_id}' (override_policy=warn)",
+                        decision_id,
+                    ))
+                else:
+                    verdicts.append((
+                        EnforcementVerdict.block,
+                        f"Action matches rejected option in decision '{decision_id}' (override_policy={override_policy})",
+                        decision_id,
+                    ))
                 continue
 
             # Rule B: migrations and API breaks always require confirmation
@@ -104,14 +116,9 @@ class EnforcementEngine:
     def _scope_matches(decision_scope: str, action_scope: str) -> bool:
         """Return *True* if *action_scope* falls under *decision_scope*.
 
-        Supports exact match and hierarchical prefix match
-        (e.g. decision ``project/backend`` matches action ``project/backend/api``).
+        Supports exact match and hierarchical prefix match using scope chains.
         """
-        if not decision_scope:
-            return False
-        if decision_scope == action_scope:
-            return True
-        return action_scope.startswith(decision_scope + "/")
+        return scope_matches(decision_scope, action_scope)
 
     @staticmethod
     def _action_matches_rejected_option(action: Action, decision: dict) -> bool:
@@ -140,3 +147,10 @@ class EnforcementEngine:
                 return True
 
         return False
+
+    @staticmethod
+    def _get_override_policy(decision: dict) -> str:
+        enforcement = decision.get("enforcement")
+        if isinstance(enforcement, dict):
+            return str(enforcement.get("override_policy") or "invalid_by_default")
+        return "invalid_by_default"

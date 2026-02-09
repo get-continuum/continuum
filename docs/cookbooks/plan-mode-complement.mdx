@@ -1,0 +1,137 @@
+---
+title: Plan Mode Complement
+description: Promote Cursor Plan Mode edits into durable, enforceable decisions
+---
+
+## Overview
+
+Cursor's **Plan Mode** helps you think through changes before making them. But plans are ephemeral — they live in the current session and disappear.
+
+Continuum makes those plans **durable**. When you make an architectural decision in Plan Mode, you can promote it to a Continuum decision that persists across sessions, agents, and team members.
+
+## The Workflow
+
+```
+Plan Mode session
+  │
+  ├── "Use React Query instead of SWR"
+  ├── "API routes go in /api/v2/"
+  └── "No server-side rendering for dashboard"
+        │
+        ▼
+  Promote to Continuum decisions
+        │
+        ▼
+  Future agents enforce these automatically
+```
+
+## Step 1: Plan in Cursor
+
+In Plan Mode, you make architectural decisions while designing your approach:
+
+```
+Plan: Refactor data fetching layer
+- Replace SWR with React Query (better devtools, mutation support)
+- Move all API routes to /api/v2/ (versioned from the start)
+- Dashboard pages: client-side only (no SSR needed — internal tool)
+```
+
+## Step 2: Promote to Decisions
+
+Each plan point becomes a Continuum decision:
+
+```python
+from continuum import ContinuumClient
+
+client = ContinuumClient()
+
+# Plan point 1: React Query over SWR
+d1 = client.commit(
+    title="Use React Query for data fetching",
+    scope="repo:acme/dashboard",
+    decision_type="rejection",
+    options=[
+        {"title": "React Query", "selected": True},
+        {"title": "SWR", "selected": False, "rejected_reason": "Lacking mutation support and devtools"},
+    ],
+    rationale="React Query has better devtools and first-class mutation support.",
+)
+client.update_status(d1.id, "active")
+
+# Plan point 2: API route structure
+d2 = client.commit(
+    title="API routes use /api/v2/ prefix",
+    scope="repo:acme/dashboard",
+    decision_type="behavior_rule",
+    options=[
+        {"title": "/api/v2/ prefix", "selected": True},
+        {"title": "/api/ (unversioned)", "selected": False, "rejected_reason": "No versioning strategy"},
+    ],
+    rationale="Version from the start to avoid breaking changes later.",
+)
+client.update_status(d2.id, "active")
+
+# Plan point 3: No SSR for dashboard
+d3 = client.commit(
+    title="No server-side rendering for dashboard",
+    scope="folder:src/dashboard",
+    decision_type="rejection",
+    options=[
+        {"title": "Client-side rendering", "selected": True},
+        {"title": "Server-side rendering", "selected": False, "rejected_reason": "Internal tool — SEO irrelevant"},
+    ],
+    rationale="Dashboard is an internal tool. SSR adds complexity with no benefit.",
+)
+client.update_status(d3.id, "active")
+```
+
+## Step 3: Agents Enforce Automatically
+
+In a future session — or when a teammate's agent works on the same repo — decisions are enforced:
+
+```python
+# A week later, a different agent tries to add SWR
+result = client.resolve(
+    query="Add data fetching with SWR to the user profile page.",
+    scope="repo:acme/dashboard",
+)
+
+if result["status"] == "resolved":
+    # React Query is the decided option
+    print(f"Use: {result['resolved_context']['title']}")
+```
+
+## What You Get
+
+| Plan Mode alone | Plan Mode + Continuum |
+|-----------------|----------------------|
+| Decisions exist in one session | Decisions persist forever |
+| Only the planner knows the choices | Every agent on the repo knows |
+| No enforcement — agents can ignore the plan | Deterministic enforcement |
+| No audit trail | Full record of what was decided and why |
+
+## Superseding Plan Decisions
+
+If a plan decision needs updating later:
+
+```python
+new_decision = client.supersede(
+    old_id=d1.id,
+    new_title="Switch from React Query to TanStack Query v5",
+    options=[
+        {"title": "TanStack Query v5", "selected": True},
+        {"title": "React Query v4", "selected": False, "rejected_reason": "Framework-agnostic rename"},
+    ],
+    rationale="TanStack Query v5 is the successor to React Query with better TypeScript support.",
+)
+```
+
+## Automation Ideas
+
+- **Git hook**: Scan Plan Mode output for decision-like statements and prompt to commit them
+- **MCP tool**: Expose a `promote_plan_decision` tool that agents can call directly
+- **CLI shortcut**: Use `continuum commit` from the terminal to batch-commit plan points
+
+<Tip>
+Start by promoting just the **rejection** decisions from your plans. These are the highest-value — they prevent agents from re-introducing approaches you've already rejected.
+</Tip>

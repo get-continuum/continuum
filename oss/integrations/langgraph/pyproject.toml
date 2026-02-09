@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "continuum-langgraph"
+version = "0.1.1"
+description = "LangGraph integration for the Continuum decision control plane"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dependencies = [
+    "continuum-sdk>=0.1.1",
+    "langgraph",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

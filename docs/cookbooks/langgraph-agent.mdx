@@ -1,0 +1,33 @@
+---
+title: "LangGraph Agent with Continuum"
+description: "Drop-in resolve → enforce → commit nodes for LangGraph"
+---
+
+## Goal
+
+Prove the Continuum integration pattern inside a stateful LangGraph:
+
+- **pre-plan**: `resolve_node`
+- **pre-tool**: `enforce_node`
+- **post-run**: `commit_node`
+
+## Install
+
+```bash
+pip install continuum-sdk continuum-langgraph langgraph
+```
+
+## Run the example
+
+From the repo root:
+
+```bash
+python oss/integrations/langgraph/examples/working_example.py
+```
+
+## What to look for
+
+- `resolution`: whether the prompt is already covered by a prior decision
+- `enforcement_result`: whether the proposed action is allowed/confirm/block
+- `committed_decision`: a newly persisted decision (optionally activated)
+

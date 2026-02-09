@@ -1,0 +1,158 @@
+---
+title: Decision Inspector
+description: Inspect decisions and manage them from the CLI and SDK
+---
+
+## Decision Inspector
+
+The CLI provides a built-in inspector for viewing decision details:
+
+```bash
+continuum inspect dec_abc123def4
+```
+
+Output (formatted JSON):
+
+```json
+{
+  "id": "dec_abc123def4",
+  "version": 0,
+  "status": "active",
+  "title": "Use PostgreSQL for user store",
+  "rationale": "Need ACID transactions for billing data.",
+  "options_considered": [
+    { "id": "opt_pg", "title": "PostgreSQL", "selected": true, "rejected_reason": null },
+    { "id": "opt_mongo", "title": "MongoDB", "selected": false, "rejected_reason": "No ACID transactions" }
+  ],
+  "enforcement": {
+    "scope": "repo:acme/backend",
+    "decision_type": "rejection",
+    "override_policy": "invalid_by_default"
+  },
+  "created_at": "2025-01-15T10:00:00Z",
+  "updated_at": "2025-01-15T10:00:00Z"
+}
+```
+
+## CLI Commands
+
+The CLI provides four commands:
+
+### `continuum inspect`
+
+View a single decision by ID:
+
+```bash
+continuum inspect dec_abc123def4
+```
+
+### `continuum commit`
+
+Create a new decision:
+
+```bash
+continuum commit "Use PostgreSQL for user store" \
+  --scope "repo:acme/backend" \
+  --type rejection \
+  --rationale "Need ACID transactions for billing data."
+```
+
+### `continuum supersede`
+
+Transition a decision to `superseded` status:
+
+```bash
+continuum supersede dec_abc123def4
+```
+
+### `continuum scopes`
+
+List all unique enforcement scopes and their active decision counts:
+
+```bash
+continuum scopes
+```
+
+Output:
+
+```
+Scope            Active Decisions
+-----------------------------------
+repo:acme/api    3
+repo:acme/backend 5
+team:frontend    1
+```
+
+## Programmatic Access
+
+All operations are available via the SDK:
+
+```python
+from continuum import ContinuumClient
+
+client = ContinuumClient()
+
+# Get a single decision by ID
+decision = client.get("dec_abc123def4")
+print(decision.title)
+print(decision.status)
+print(decision.options_considered)
+
+# List all decisions, optionally by scope
+all_decisions = client.list_decisions()
+scoped = client.list_decisions(scope="repo:acme/backend")
+for d in scoped:
+    print(f"{d.id}: {d.title} ({d.status})")
+
+# Get active decisions for a scope (the "binding set")
+active = client.inspect("repo:acme/backend")
+for d in active:
+    print(f"{d['id']}: {d['title']}")
+```
+
+## Lifecycle Management
+
+Transition decisions through their lifecycle:
+
+```python
+# Activate a draft decision
+activated = client.update_status("dec_abc123def4", "active")
+print(activated.status)  # "active"
+
+# Supersede with a replacement
+new_decision = client.supersede(
+    old_id="dec_abc123def4",
+    new_title="Switch to DynamoDB for session store",
+    options=[
+        {"title": "DynamoDB", "selected": True},
+        {"title": "Redis", "selected": False, "rejected_reason": "Cost at scale"},
+    ],
+    rationale="DynamoDB serverless pricing is better for our traffic pattern.",
+)
+```
+
+## MCP Tool Access
+
+When running the MCP server, agents can use the `continuum_inspect` tool directly:
+
+```json
+{
+  "tool": "continuum_inspect",
+  "arguments": {
+    "decision_id": "dec_abc123def4"
+  }
+}
+```
+
+This gives agent frameworks (LangGraph, LlamaIndex, etc.) native access to decision inspection without custom integration code.
+
+## Audit Trail
+
+Every decision maintains a complete audit trail:
+
+- **Created at** — when the decision was first committed
+- **Updated at** — when any allowed field was last changed
+- **Status** — full lifecycle history (draft → active → superseded → archived)
+- **Supersedes** — which decision replaced it (via the `enforcement.supersedes` field)
+
+This makes it easy to answer "why did the agent do X?" — trace back to the decision, see who made it, and understand the rationale.

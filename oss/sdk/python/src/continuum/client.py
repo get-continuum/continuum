@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
+from continuum.enforce.engine import EnforcementEngine
+from continuum.enforce.types import Action, ActionType, EnforcementResult
 from continuum.exceptions import DecisionNotFoundError
 from continuum.lifecycle import transition
 from continuum.models import (
@@ -16,6 +18,9 @@ from continuum.models import (
     Option,
     OverridePolicy,
 )
+from continuum.resolve.resolve import resolve as _resolve_fn
+from continuum.resolve.types import CandidateOption, ResolveResult
+from continuum.scope import scope_matches
 
 
 class ContinuumClient:
@@ -46,6 +51,9 @@ class ContinuumClient:
         rationale: str | None = None,
         stakeholders: list[str] | None = None,
         metadata: dict | None = None,
+        override_policy: str | None = None,
+        precedence: int | None = None,
+        supersedes: str | None = None,
     ) -> Decision:
         """Create and persist a new decision.
 
@@ -54,12 +62,22 @@ class ContinuumClient:
         now = datetime.now(timezone.utc)
         decision_id = f"dec_{uuid4().hex[:12]}"
 
-        parsed_options = [Option(**o) for o in options] if options else []
+        parsed_options: list[Option] = []
+        if options:
+            for o in options:
+                # Keep docs/examples ergonomic while persisting spec-compliant records.
+                if "id" not in o or not o["id"]:
+                    o = {**o, "id": f"opt_{uuid4().hex[:10]}"}
+                parsed_options.append(Option(**o))
 
         enforcement = Enforcement(
             scope=scope,
             decision_type=DecisionType(decision_type),
-            override_policy=OverridePolicy.invalid_by_default,
+            supersedes=supersedes,
+            precedence=precedence,
+            override_policy=OverridePolicy(override_policy)
+            if override_policy
+            else OverridePolicy.invalid_by_default,
         )
 
         decision = Decision(
@@ -99,7 +117,8 @@ class ContinuumClient:
                         if isinstance(decision.enforcement, dict)
                         else decision.enforcement.scope
                     )
-                    if enforcement_scope == scope:
+                    # Filter supports wildcard and prefix matching.
+                    if scope_matches(scope, enforcement_scope):
                         decisions.append(decision)
             else:
                 decisions.append(decision)
@@ -114,6 +133,152 @@ class ContinuumClient:
         updated = transition(decision, DecisionStatus(new_status))
         self._save(updated)
         return updated
+
+    # ------------------------------------------------------------------
+    # Convenience methods
+    # ------------------------------------------------------------------
+
+    def inspect(self, scope: str) -> list[dict]:
+        """Return all active decisions for *scope* as plain dicts.
+
+        This is the "binding set" — the decisions currently in effect.
+        """
+        # Binding set includes decisions whose scope applies to the target scope.
+        decisions = self.list_decisions()
+        return [
+            d.model_dump(mode="json")
+            for d in decisions
+            if d.status in ("active", DecisionStatus.active)
+            and d.enforcement is not None
+            and scope_matches(
+                (
+                    d.enforcement.get("scope")
+                    if isinstance(d.enforcement, dict)
+                    else d.enforcement.scope
+                ),
+                scope,
+            )
+        ]
+
+    def enforce(self, action: dict, scope: str) -> dict:
+        """Evaluate an *action* dict against active decisions in *scope*.
+
+        Parameters
+        ----------
+        action:
+            Dict with ``type`` (ActionType value) and ``description`` keys.
+        scope:
+            The enforcement scope to check against.
+
+        Returns
+        -------
+        dict
+            Enforcement result with ``verdict``, ``reason``, etc.
+        """
+        decisions = self.list_decisions()
+        engine = EnforcementEngine(decisions)
+        action_obj = Action(
+            type=ActionType(action.get("type", "generic")),
+            description=action.get("description", action.get("summary", "")),
+            scope=scope,
+            metadata=action.get("metadata", {}),
+        )
+        result: EnforcementResult = engine.evaluate(action_obj)
+        return result.model_dump(mode="json")
+
+    def resolve(
+        self,
+        query: str,
+        scope: str,
+        candidates: list[dict] | None = None,
+    ) -> dict:
+        """Run the ambiguity gate for *query* against decisions in *scope*.
+
+        Parameters
+        ----------
+        query:
+            Free-text query describing the intent.
+        scope:
+            Enforcement scope.
+        candidates:
+            Optional list of candidate option dicts (``id``, ``title``).
+
+        Returns
+        -------
+        dict
+            Resolve result with ``status`` ("resolved" | "needs_clarification").
+        """
+        decisions = self.list_decisions()
+        decision_dicts = [d.model_dump(mode="json") for d in decisions]
+        candidate_objs = [
+            CandidateOption(id=c["id"], title=c["title"])
+            for c in (candidates or [])
+        ]
+        result: ResolveResult = _resolve_fn(
+            query=query,
+            scope=scope,
+            candidates=candidate_objs,
+            decisions=decision_dicts,
+        )
+        return result.model_dump(mode="json")
+
+    def supersede(self, old_id: str, new_title: str, **kwargs: object) -> Decision:
+        """Supersede an existing decision and commit a replacement.
+
+        Transitions the old decision to ``superseded`` and creates a new
+        decision that records the supersession.
+
+        Parameters
+        ----------
+        old_id:
+            ID of the decision being replaced.
+        new_title:
+            Title for the replacement decision.
+        **kwargs:
+            Additional keyword arguments forwarded to :meth:`commit`.
+
+        Returns
+        -------
+        Decision
+            The newly committed replacement decision.
+        """
+        old_decision = self._load(old_id)
+
+        # Transition old decision to superseded
+        updated_old = transition(old_decision, DecisionStatus.superseded)
+        self._save(updated_old)
+
+        # Determine scope from old decision
+        scope = kwargs.pop("scope", None)  # type: ignore[arg-type]
+        if scope is None and old_decision.enforcement is not None:
+            scope = (
+                old_decision.enforcement.get("scope")
+                if isinstance(old_decision.enforcement, dict)
+                else old_decision.enforcement.scope
+            )
+
+        # Determine decision_type from old decision
+        decision_type = kwargs.pop("decision_type", None)  # type: ignore[arg-type]
+        if decision_type is None and old_decision.enforcement is not None:
+            decision_type = (
+                old_decision.enforcement.get("decision_type")
+                if isinstance(old_decision.enforcement, dict)
+                else old_decision.enforcement.decision_type
+            )
+
+        new_dec = self.commit(
+            title=new_title,
+            scope=scope,  # type: ignore[arg-type]
+            decision_type=decision_type,  # type: ignore[arg-type]
+            supersedes=old_id,
+            **kwargs,  # type: ignore[arg-type]
+        )
+
+        # Activate the new decision immediately
+        activated = transition(new_dec, DecisionStatus.active)
+        self._save(activated)
+
+        return activated
 
     # ------------------------------------------------------------------
     # Internal helpers

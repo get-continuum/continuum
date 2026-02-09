@@ -1,0 +1,131 @@
+---
+title: Local Mode
+description: Run Continuum entirely on your machine — no server needed
+---
+
+## Overview
+
+Local Mode stores decisions as JSON files on disk. No server, no database, no network calls. This is the default when you use the SDK without configuring a remote backend.
+
+## How It Works
+
+When you create a `ContinuumClient()` without specifying a storage directory, the SDK uses a local JSON store in `.continuum/`:
+
+```python
+from continuum import ContinuumClient
+
+# Local mode — decisions stored in .continuum/ directory
+client = ContinuumClient()
+
+# Or specify a custom storage directory
+client = ContinuumClient(storage_dir="/path/to/decisions")
+```
+
+Decisions are persisted as individual JSON files in a `decisions/` subdirectory.
+
+## Storage Layout
+
+```
+.continuum/
+  decisions/
+    dec_abc123def4.json
+    dec_567890abcd.json
+```
+
+## Creating Decisions Locally
+
+```python
+decision = client.commit(
+    title="Use PostgreSQL for user store",
+    scope="repo:acme/backend",
+    decision_type="rejection",
+    options=[
+        {"title": "PostgreSQL", "selected": True},
+        {"title": "MongoDB", "selected": False, "rejected_reason": "No ACID"},
+    ],
+    rationale="Need ACID transactions for billing data.",
+)
+
+print(f"Stored at: .continuum/decisions/{decision.id}.json")
+```
+
+## Retrieving Decisions
+
+Fetch a single decision by ID:
+
+```python
+result = client.get(decision.id)
+print(result.title)       # "Use PostgreSQL for user store"
+print(result.status)      # "draft"
+```
+
+List all decisions, optionally filtered by scope:
+
+```python
+all_decisions = client.list_decisions()
+scoped = client.list_decisions(scope="repo:acme/backend")
+```
+
+Get the active "binding set" for a scope:
+
+```python
+active = client.inspect("repo:acme/backend")
+# Returns list of dicts for all active decisions in that scope
+```
+
+Or via the CLI:
+
+```bash
+continuum inspect dec_abc123def4
+```
+
+## Enforcement in Local Mode
+
+Enforcement is fully deterministic and works identically in local mode:
+
+```python
+result = client.enforce(
+    action={"type": "generic", "description": "select MongoDB"},
+    scope="repo:acme/backend",
+)
+
+print(f"Verdict: {result['verdict']}")  # allow | confirm | block
+print(f"Reason: {result['reason']}")
+```
+
+Or use the `EnforcementEngine` directly for more control:
+
+```python
+from continuum.enforce import EnforcementEngine, Action, ActionType
+
+decisions = client.list_decisions(scope="repo:acme/backend")
+engine = EnforcementEngine(decisions)
+
+action = Action(
+    type=ActionType.generic,
+    description="select MongoDB",
+    scope="repo:acme/backend",
+)
+result = engine.evaluate(action)
+```
+
+## When to Use Local Mode
+
+<CardGroup cols={2}>
+  <Card title="Solo development" icon="user">
+    Personal projects where you're the only developer.
+  </Card>
+  <Card title="Prototyping" icon="flask">
+    Trying out Continuum before connecting to a shared backend.
+  </Card>
+  <Card title="CI/CD pipelines" icon="gear">
+    Decision enforcement in automated workflows.
+  </Card>
+  <Card title="Air-gapped environments" icon="shield">
+    Networks where external API calls aren't possible.
+  </Card>
+</CardGroup>
+
+## Migrating to a Remote Backend
+
+When you're ready to share decisions across a team, the SDK can be extended to support remote storage. Local decisions can be exported (as JSON files) and imported into a shared backend.

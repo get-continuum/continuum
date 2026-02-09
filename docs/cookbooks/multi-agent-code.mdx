@@ -1,0 +1,140 @@
+---
+title: Multi-Agent Coding
+description: Shared decisions across multiple AI coding agents
+---
+
+## The Problem
+
+Modern development often involves **multiple AI agents** working on the same codebase:
+
+- Cursor for interactive coding
+- Copilot for inline suggestions
+- A LangGraph pipeline for automated refactoring
+- A CI/CD agent for deployment decisions
+
+Without shared context, each agent makes its own choices. Agent A picks PostgreSQL, Agent B suggests MongoDB, and Agent C tries to add both. Chaos.
+
+## The Solution: Shared Decisions
+
+Continuum gives all agents access to the **same decision store**. When one agent commits a decision, every other agent sees it.
+
+```
+┌──────────┐  ┌──────────┐  ┌──────────┐
+│  Cursor   │  │  Copilot  │  │ LangGraph │
+│  Agent    │  │  Agent    │  │ Pipeline  │
+└─────┬─────┘  └─────┬─────┘  └─────┬─────┘
+      │              │              │
+      └──────────────┼──────────────┘
+                     │
+              ┌──────▼──────┐
+              │  Continuum   │
+              │ Decision     │
+              │   Store      │
+              └─────────────┘
+```
+
+## Workflow
+
+### Agent 1 (Cursor) Makes a Decision
+
+A developer working in Cursor decides on the API framework:
+
+```python
+from continuum import ContinuumClient
+
+client = ContinuumClient()
+
+decision = client.commit(
+    title="Use FastAPI for REST endpoints",
+    scope="repo:acme/backend",
+    decision_type="preference",
+    options=[
+        {"title": "FastAPI", "selected": True},
+        {"title": "Flask", "selected": False, "rejected_reason": "No built-in async"},
+        {"title": "Django REST", "selected": False, "rejected_reason": "Too heavy for microservice"},
+    ],
+    rationale="FastAPI provides async support and auto-generated OpenAPI docs.",
+)
+client.update_status(decision.id, "active")
+```
+
+### Agent 2 (LangGraph Pipeline) Checks Before Acting
+
+An automated refactoring pipeline resolves against the decision store before making changes:
+
+```python
+result = client.resolve(
+    query="Create a new REST endpoint for user profiles.",
+    scope="repo:acme/backend",
+)
+
+if result["status"] == "resolved":
+    # Use FastAPI — the decision is clear
+    context = result["resolved_context"]
+    print(f"Using framework per decision {context['id']}: {context['title']}")
+```
+
+### Agent 3 (CI/CD) Enforces at Deploy Time
+
+The CI/CD agent checks that no rejected options were introduced:
+
+```python
+# Enforce against all active decisions in scope
+result = client.enforce(
+    action={
+        "type": "deployment",
+        "description": "deploy Flask API endpoint",
+    },
+    scope="repo:acme/backend",
+)
+
+if result["verdict"] == "block":
+    print(f"Blocked: {result['reason']}")
+    sys.exit(1)
+elif result["verdict"] == "confirm":
+    print(f"Needs confirmation: {result['reason']}")
+else:
+    print("Deployment allowed")
+```
+
+## Integration Patterns
+
+### Via MCP Server
+
+The simplest way to give all agents access. Start the MCP server and connect each agent:
+
+```bash
+pip install -e oss/mcp-server
+```
+
+Each agent framework (LangGraph, LlamaIndex, etc.) can use the MCP tools: `continuum_resolve`, `continuum_enforce`, `continuum_commit`, `continuum_inspect`.
+
+### Via SDK
+
+For deeper integration, use the Python SDK directly in each agent's code:
+
+```python
+from continuum import ContinuumClient
+
+# All agents share the same storage directory
+client = ContinuumClient(storage_dir="/shared/.continuum")
+```
+
+### Via CLI
+
+For CI/CD pipelines and scripts:
+
+```bash
+continuum inspect dec_abc123def4
+continuum commit "Use PostgreSQL" --scope "repo:acme/backend" --type rejection
+```
+
+## Conflict Resolution
+
+When multiple agents try to commit conflicting decisions:
+
+1. **Scope specificity** wins — an agent working in `folder:src/api/` overrides `repo:` level decisions
+2. **Precedence values** break ties at the same scope level
+3. **Recency** is the final tiebreaker
+
+See [Scope & Precedence](/concepts/scope-precedence) for the full resolution algorithm.

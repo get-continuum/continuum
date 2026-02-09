@@ -1,0 +1,64 @@
+---
+title: Open Source Overview
+description: What ships in the Apache-2.0 OSS layer
+---
+
+## Philosophy
+
+The OSS layer provides **deterministic, auditable logic**. No heuristics, no ML, no LLM calls. Extension points (abstract base classes) allow plugging in advanced implementations from the Core engine.
+
+## What's Included
+
+| Component | Location | Description |
+|-----------|----------|-------------|
+| **Contracts** | `oss/contracts/` | JSON Schemas, specification, examples, validation tests |
+| **SDK** | `oss/sdk/python/` | Pydantic models, schema loader, lifecycle state machine, local CRUD client |
+| **Hooks** | `oss/sdk/python/.../hooks.py` | ABCs: `AmbiguityScorer`, `DecisionCompiler`, `RiskScorer` |
+| **Enforcement** | `oss/sdk/python/.../enforce/` | Deterministic rule engine: `block` / `confirm` / `allow` |
+| **Resolve** | `oss/sdk/python/.../resolve/` | Basic flow: check prior decision, return context or `needs_clarification` |
+| **CLI** | `oss/cli/` | Inspector: inspect, commit, supersede, scopes |
+| **MCP Server** | `oss/mcp-server/` | Tool stubs for inspect / resolve / enforce / commit |
+| **Integrations** | `oss/integrations/` | LangGraph nodes, LlamaIndex adapter stubs |
+| **Packs** | `oss/packs/code/` | Decision templates (JSON) for common code workflows |
+
+## OSS vs Core Boundary
+
+| Layer | License | Contains |
+|-------|---------|----------|
+| `oss/` | Apache-2.0 | Contracts, SDK, CLI, MCP server, integrations — all deterministic |
+| `core/` | BSL-1.1 | LLM-based scorers, compiler, advanced policies, intent resolver |
+
+The OSS layer **never** imports from Core. Extension points are defined as abstract base classes (ABCs) in the SDK's `hooks.py`. Core provides implementations.
+
+<Info>
+**Rule of thumb**: "Does this require an LLM call or learned heuristic?" If yes → `core/`. If no → `oss/`.
+</Info>
+
+## Repository Layout
+
+```
+oss/
+  contracts/    Decision JSON Schemas, spec, examples
+  sdk/python/   Python SDK (deterministic)
+  cli/          CLI inspector (typer-based)
+  packs/code/   Decision templates for code workflows
+  mcp-server/   MCP server exposing decision tools
+  integrations/ LangGraph, LlamaIndex adapters
+  examples/     Runnable examples
+  docs/         Internal documentation
+
+core/           Engine implementations (BSL-1.1)
+  src/          Scorers, compiler, policies, resolution, LLM layer
+  tests/        Tests with mocked LLM responses
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Install" icon="download" href="/open-source/install">
+    Get the SDK and CLI installed locally.
+  </Card>
+  <Card title="Local Mode" icon="laptop" href="/open-source/local-mode">
+    Run Continuum entirely on your machine — no server needed.
+  </Card>
+</CardGroup>

@@ -1,0 +1,168 @@
+---
+title: MCP Server
+description: Expose Continuum as MCP tools for any agent framework
+---
+
+## Overview
+
+The Continuum MCP Server exposes decision operations as **Model Context Protocol** tools. Any MCP-compatible agent (Cursor, Claude, custom agents) can use these tools to resolve, enforce, commit, and inspect decisions.
+
+## Installation
+
+```bash
+pip install continuum-mcp-server
+```
+
+<Note>
+The MCP server requires the `mcp` package: `pip install 'mcp>=1.0'`
+</Note>
+
+## Starting the Server
+
+The server runs over stdio (standard MCP transport):
+
+```bash
+continuum-mcp serve
+```
+
+To point the server at a specific repo-local store directory:
+
+```bash
+CONTINUUM_STORE="/path/to/.continuum" continuum-mcp serve
+```
+
+## Available Tools
+
+### `continuum_resolve`
+
+Check for prior decisions matching a prompt.
+
+```json
+{
+  "tool": "continuum_resolve",
+  "arguments": {
+    "prompt": "What database should we use for the user service?",
+    "scope": "repo:acme/backend"
+  }
+}
+```
+
+**Returns**: `resolved` with the matching decision, or `needs_clarification` with a suggested question.
+
+### `continuum_enforce`
+
+Evaluate enforcement rules against a proposed action.
+
+```json
+{
+  "tool": "continuum_enforce",
+  "arguments": {
+    "scope": "repo:acme/backend",
+    "action": {
+      "type": "code_change",
+      "description": "Do a full rewrite of auth module"
+    }
+  }
+}
+```
+
+**Returns**: `allow`, `confirm`, or `block` with a reason.
+
+### `continuum_commit`
+
+Persist a new decision.
+
+```json
+{
+  "tool": "continuum_commit",
+  "arguments": {
+    "title": "Use PostgreSQL for user store",
+    "scope": "repo:acme/backend",
+    "decision_type": "rejection",
+    "options": [
+      {"title": "PostgreSQL", "selected": true},
+      {"title": "MongoDB", "selected": false, "rejected_reason": "No ACID"}
+    ],
+    "rationale": "Need ACID transactions for billing data.",
+    "activate": true
+  }
+}
+```
+
+### `continuum_inspect`
+
+Inspect a scope’s binding set or view a decision’s full details.
+
+Binding set by scope:
+
+```json
+{
+  "tool": "continuum_inspect",
+  "arguments": {
+    "scope": "repo:acme/backend"
+  }
+}
+```
+
+Single decision by ID:
+
+```json
+{
+  "tool": "continuum_inspect",
+  "arguments": {
+    "decision_id": "dec_abc123def4"
+  }
+}
+```
+
+### `continuum_supersede`
+
+Supersede a decision (v1 → v2) and activate the replacement:
+
+```json
+{
+  "tool": "continuum_supersede",
+  "arguments": {
+    "old_id": "dec_abc123def4",
+    "new_title": "production-ready",
+    "rationale": "Production-ready now includes linting."
+  }
+}
+```
+
+## Connecting to Cursor
+
+Add the MCP server to your Cursor configuration:
+
+```json
+{
+  "mcpServers": {
+    "continuum": {
+      "command": "continuum-mcp",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+## Connecting to Claude
+
+For Claude Desktop or API integrations:
+
+```json
+{
+  "mcpServers": {
+    "continuum": {
+      "command": "continuum-mcp",
+      "args": ["serve"],
+      "env": {
+        "CONTINUUM_STORE": "/path/to/.continuum"
+      }
+    }
+  }
+}
+```
+
+<Tip>
+The MCP server is the **simplest integration path**. If your agent framework supports MCP, you get Continuum capabilities with zero custom code.
+</Tip>

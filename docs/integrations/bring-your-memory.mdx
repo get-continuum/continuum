@@ -1,0 +1,150 @@
+---
+title: Bring Your Memory
+description: Use Mem0, Zep, or Letta as signal sources alongside Continuum
+---
+
+## Overview
+
+Continuum is a **decision** layer, not a general memory layer. But decisions don't exist in a vacuum — they're informed by context from conversations, user preferences, and historical interactions.
+
+Memory systems like **Mem0**, **Zep**, and **Letta** are excellent at capturing and retrieving this context. Continuum can use their signals as **inputs** to the decision process.
+
+## How It Works
+
+```
+┌────────────────┐
+│  Memory Layer   │  (Mem0, Zep, Letta)
+│  "User prefers  │
+│   Python 3.12"  │
+└───────┬────────┘
+        │  signal
+        ▼
+┌────────────────┐
+│   Continuum     │  (Decision Control Plane)
+│  "Use Python    │
+│   3.12 for all  │
+│   new services" │
+└───────┬────────┘
+        │  enforce
+        ▼
+┌────────────────┐
+│   AI Agent      │
+│  (follows the   │
+│   decision)     │
+└────────────────┘
+```
+
+The memory layer provides **observations**. Continuum turns them into **enforceable decisions**.
+
+## Mem0 Integration
+
+Use Mem0 memories as context when committing decisions:
+
+```python
+from mem0 import Memory
+from continuum import ContinuumClient
+
+# Retrieve relevant memories
+mem = Memory()
+memories = mem.search("database preferences", user_id="alice")
+
+# Use memory context to inform the decision
+client = ContinuumClient()
+client.commit(
+    title="Use PostgreSQL for user store",
+    scope="repo:acme/backend",
+    decision_type="preference",
+    rationale=f"Based on team preference history: {memories[0]['memory']}",
+    options=[
+        {"title": "PostgreSQL", "selected": True},
+        {"title": "MongoDB", "selected": False},
+    ],
+    metadata={"source": "mem0", "memory_ids": [m["id"] for m in memories]},
+)
+```
+
+## Zep Integration
+
+Pull conversation history from Zep to inform decisions:
+
+```python
+from zep_cloud.client import Zep
+from continuum import ContinuumClient
+
+zep = Zep(api_key="your-key")
+client = ContinuumClient()
+
+# Search for relevant conversation context
+results = zep.memory.search_sessions(
+    text="database choice",
+    user_id="alice",
+)
+
+# Commit a decision informed by conversation history
+client.commit(
+    title="Use DynamoDB for session store",
+    scope="repo:acme/backend",
+    decision_type="preference",
+    rationale=f"Discussed in session {results[0].session_id}: {results[0].summary}",
+    options=[
+        {"title": "DynamoDB", "selected": True},
+        {"title": "Redis", "selected": False, "rejected_reason": "Operational overhead"},
+    ],
+    metadata={"source": "zep", "session_id": results[0].session_id},
+)
+```
+
+## Letta Integration
+
+Use Letta's long-term agent memory as decision context:
+
+```python
+from letta import Letta
+from continuum import ContinuumClient
+
+letta = Letta()
+client = ContinuumClient()
+
+# Query agent's memory for past preferences
+memory = letta.agents.get_agent_memory(agent_id="coding-agent")
+
+# Turn memory into an enforceable decision
+client.commit(
+    title="Use TypeScript for all frontend code",
+    scope="team:frontend",
+    decision_type="behavior_rule",
+    rationale=f"Team standard per agent memory: {memory.summary}",
+    options=[
+        {"title": "TypeScript", "selected": True},
+        {"title": "JavaScript", "selected": False, "rejected_reason": "Type safety required"},
+    ],
+    metadata={"source": "letta", "agent_id": "coding-agent"},
+)
+```
+
+## Key Distinction
+
+| Memory Systems (Mem0, Zep, Letta) | Continuum |
+|-----------------------------------|-----------|
+| Store observations and preferences | Store **decisions** with enforcement |
+| "User likes PostgreSQL" | "Use PostgreSQL — MongoDB is rejected" |
+| Retrieval-based — suggests | Rule-based — **enforces** |
+| Great for personalization | Great for consistency |
+
+<Info>
+Memory systems and Continuum are **complementary**, not competing. Use memory to inform decisions, then use Continuum to enforce them.
+</Info>
+
+## Connector Interface (v0.1)
+
+Continuum defines a tiny protocol you can implement for any memory backend:
+
+```python
+from continuum.memory import MemorySignalSource
+
+class MyMemory(MemorySignalSource):
+    def search(self, query: str, *, scope: str | None = None, limit: int = 10):
+        ...
+```
+
+This keeps the SDK dependency-free while making it easy to standardize “bring your memory” connectors over time.

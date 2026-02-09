@@ -1,17 +1,23 @@
 """Continuum MCP Server.
 
 Exposes Continuum decision operations as MCP tools:
-  - inspect: Look up a decision by ID
-  - resolve: Check if a prior decision covers a prompt
-  - enforce: Evaluate enforcement rules for a decision
-  - commit: Persist a new decision
+  - inspect: binding set by scope OR a decision by ID
+  - resolve: ambiguity gate against prior decisions
+  - enforce: enforcement verdict for a proposed action
+  - commit: persist a new decision (optionally activate)
+  - supersede: replace an existing decision with a new active one
 """
 
 from __future__ import annotations
 
+import os
 import json
 import sys
 from typing import Any
+
+# SDK
+from continuum.client import ContinuumClient
+from continuum.exceptions import ContinuumError
 
 # ---------------------------------------------------------------------------
 # MCP SDK imports — gracefully degrade if not installed
@@ -31,7 +37,10 @@ except ImportError:
 TOOLS: list[dict[str, Any]] = [
     {
         "name": "continuum_inspect",
-        "description": "Inspect a decision by ID. Returns the full decision record.",
+        "description": (
+            "Inspect Continuum decisions. Provide either `decision_id` to fetch a single decision, "
+            "or `scope` to fetch the active binding set for that scope."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -39,8 +48,12 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "The unique decision identifier.",
                 },
+                "scope": {
+                    "type": "string",
+                    "description": "Scope to inspect (returns active binding set).",
+                },
             },
-            "required": ["decision_id"],
+            "anyOf": [{"required": ["decision_id"]}, {"required": ["scope"]}],
         },
     },
     {
@@ -60,6 +73,11 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "Hierarchical scope identifier (e.g. repo:acme/backend).",
                 },
+                "candidates": {
+                    "type": "array",
+                    "description": "Optional candidate options (id, title) for disambiguation.",
+                    "items": {"type": "object"},
+                },
             },
             "required": ["prompt", "scope"],
         },
@@ -67,22 +85,22 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "continuum_enforce",
         "description": (
-            "Evaluate enforcement rules for a decision and action context. "
-            "Returns a verdict: allow, confirm, or block."
+            "Evaluate enforcement rules for a proposed action in a scope. "
+            "Returns a verdict: allow, confirm, or block (deterministic)."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
-                "decision_id": {
+                "scope": {
                     "type": "string",
-                    "description": "The decision to enforce.",
+                    "description": "Scope to evaluate enforcement within.",
                 },
-                "action_context": {
+                "action": {
                     "type": "object",
-                    "description": "Context about the action being performed.",
+                    "description": "Proposed action (type, description, metadata).",
                 },
             },
-            "required": ["decision_id"],
+            "required": ["scope", "action"],
         },
     },
     {
@@ -112,58 +130,184 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "Why this decision was made.",
                 },
+                "stakeholders": {
+                    "type": "array",
+                    "description": "Optional list of stakeholders.",
+                    "items": {"type": "string"},
+                },
+                "metadata": {
+                    "type": "object",
+                    "description": "Optional decision metadata.",
+                },
+                "override_policy": {
+                    "type": "string",
+                    "description": "Override policy: invalid_by_default | warn | allow",
+                },
+                "precedence": {
+                    "type": "integer",
+                    "description": "Optional precedence for conflict resolution.",
+                },
+                "supersedes": {
+                    "type": "string",
+                    "description": "Optional decision id this decision supersedes.",
+                },
+                "activate": {
+                    "type": "boolean",
+                    "description": "If true, transition the decision to active immediately.",
+                    "default": False,
+                },
             },
             "required": ["title", "scope", "decision_type", "rationale"],
+        },
+    },
+    {
+        "name": "continuum_supersede",
+        "description": "Supersede an existing decision by committing a replacement and activating it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "old_id": {
+                    "type": "string",
+                    "description": "ID of the decision being replaced.",
+                },
+                "new_title": {
+                    "type": "string",
+                    "description": "Title for the replacement decision.",
+                },
+                "rationale": {
+                    "type": "string",
+                    "description": "Rationale for the replacement decision.",
+                },
+                "options": {
+                    "type": "array",
+                    "description": "Optional list of options considered.",
+                    "items": {"type": "object"},
+                },
+                "stakeholders": {
+                    "type": "array",
+                    "description": "Optional list of stakeholders.",
+                    "items": {"type": "string"},
+                },
+                "metadata": {
+                    "type": "object",
+                    "description": "Optional decision metadata.",
+                },
+                "override_policy": {
+                    "type": "string",
+                    "description": "Override policy: invalid_by_default | warn | allow",
+                },
+                "precedence": {
+                    "type": "integer",
+                    "description": "Optional precedence for conflict resolution.",
+                },
+            },
+            "required": ["old_id", "new_title"],
         },
     },
 ]
 
 # ---------------------------------------------------------------------------
-# Tool handlers (stubs)
+# Tool handlers
 # ---------------------------------------------------------------------------
 
 
+def _client() -> ContinuumClient:
+    storage_dir = os.environ.get("CONTINUUM_STORE")
+    return ContinuumClient(storage_dir=storage_dir) if storage_dir else ContinuumClient()
+
+
+def _ok(payload: Any) -> str:
+    return json.dumps({"status": "ok", "result": payload}, default=str)
+
+
+def _err(message: str) -> str:
+    return json.dumps({"status": "error", "error": message})
+
+
 def _handle_inspect(arguments: dict[str, Any]) -> str:
-    """Inspect a decision by ID."""
-    # TODO: Wire up to ContinuumClient.inspect()
-    decision_id = arguments.get("decision_id", "unknown")
-    return json.dumps(
-        {"status": "not_implemented", "decision_id": decision_id},
-    )
+    """Inspect by decision_id (single record) OR by scope (binding set)."""
+    try:
+        client = _client()
+        if "decision_id" in arguments and arguments["decision_id"]:
+            dec = client.get(str(arguments["decision_id"]))
+            return _ok(dec.model_dump(mode="json"))
+        if "scope" in arguments and arguments["scope"]:
+            binding = client.inspect(str(arguments["scope"]))
+            return _ok(binding)
+        return _err("Provide either 'decision_id' or 'scope'.")
+    except ContinuumError as exc:
+        return _err(str(exc))
 
 
 def _handle_resolve(arguments: dict[str, Any]) -> str:
     """Resolve a prompt against prior decisions."""
-    # TODO: Wire up to ContinuumClient.resolve()
-    return json.dumps(
-        {
-            "status": "not_implemented",
-            "prompt": arguments.get("prompt", ""),
-            "scope": arguments.get("scope", ""),
-        },
-    )
+    try:
+        client = _client()
+        prompt = str(arguments.get("prompt", ""))
+        scope = str(arguments.get("scope", ""))
+        candidates = arguments.get("candidates")
+        result = client.resolve(query=prompt, scope=scope, candidates=candidates)
+        return _ok(result)
+    except ContinuumError as exc:
+        return _err(str(exc))
 
 
 def _handle_enforce(arguments: dict[str, Any]) -> str:
-    """Enforce rules for a decision."""
-    # TODO: Wire up to enforcement engine
-    return json.dumps(
-        {
-            "status": "not_implemented",
-            "decision_id": arguments.get("decision_id", "unknown"),
-        },
-    )
+    """Enforce rules for a proposed action within a scope."""
+    try:
+        client = _client()
+        scope = str(arguments.get("scope", ""))
+        action = arguments.get("action") or {}
+        result = client.enforce(action=action, scope=scope)
+        return _ok(result)
+    except ContinuumError as exc:
+        return _err(str(exc))
 
 
 def _handle_commit(arguments: dict[str, Any]) -> str:
     """Commit a new decision."""
-    # TODO: Wire up to ContinuumClient.commit()
-    return json.dumps(
-        {
-            "status": "not_implemented",
-            "title": arguments.get("title", ""),
-        },
-    )
+    try:
+        client = _client()
+        dec = client.commit(
+            title=str(arguments["title"]),
+            scope=str(arguments["scope"]),
+            decision_type=str(arguments["decision_type"]),
+            options=arguments.get("options"),
+            rationale=arguments.get("rationale"),
+            stakeholders=arguments.get("stakeholders"),
+            metadata=arguments.get("metadata"),
+            override_policy=arguments.get("override_policy"),
+            precedence=arguments.get("precedence"),
+            supersedes=arguments.get("supersedes"),
+        )
+        if arguments.get("activate"):
+            dec = client.update_status(dec.id, "active")
+        return _ok(dec.model_dump(mode="json"))
+    except (KeyError, TypeError) as exc:
+        return _err(f"Invalid arguments: {exc}")
+    except ContinuumError as exc:
+        return _err(str(exc))
+
+
+def _handle_supersede(arguments: dict[str, Any]) -> str:
+    """Supersede an existing decision."""
+    try:
+        client = _client()
+        dec = client.supersede(
+            old_id=str(arguments["old_id"]),
+            new_title=str(arguments["new_title"]),
+            rationale=arguments.get("rationale"),
+            options=arguments.get("options"),
+            stakeholders=arguments.get("stakeholders"),
+            metadata=arguments.get("metadata"),
+            override_policy=arguments.get("override_policy"),
+            precedence=arguments.get("precedence"),
+        )
+        return _ok(dec.model_dump(mode="json"))
+    except (KeyError, TypeError) as exc:
+        return _err(f"Invalid arguments: {exc}")
+    except ContinuumError as exc:
+        return _err(str(exc))
 
 
 _HANDLERS: dict[str, Any] = {
@@ -171,6 +315,7 @@ _HANDLERS: dict[str, Any] = {
     "continuum_resolve": _handle_resolve,
     "continuum_enforce": _handle_enforce,
     "continuum_commit": _handle_commit,
+    "continuum_supersede": _handle_supersede,
 }
 
 # ---------------------------------------------------------------------------
@@ -179,7 +324,35 @@ _HANDLERS: dict[str, Any] = {
 
 
 def main() -> None:
-    """Start the Continuum MCP server."""
+    """Entry point for the `continuum-mcp` console script.
+
+    Usage:
+        continuum-mcp serve
+
+    Environment:
+        CONTINUUM_STORE=/path/to/.continuum
+    """
+    # Minimal CLI wrapper (avoid extra deps).
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "serve"
+    if cmd in ("-h", "--help", "help"):
+        print(
+            "Continuum MCP Server\n\n"
+            "Usage:\n"
+            "  continuum-mcp serve\n\n"
+            "Environment:\n"
+            "  CONTINUUM_STORE   Path to repo-local .continuum directory\n",
+            file=sys.stdout,
+        )
+        return
+    if cmd != "serve":
+        print(f"Unknown command: {cmd}\nRun: continuum-mcp --help", file=sys.stderr)
+        sys.exit(2)
+
+    serve()
+
+
+def serve() -> None:
+    """Start the Continuum MCP server (stdio transport)."""
     if not _HAS_MCP:
         print(
             "ERROR: The 'mcp' package is not installed. "

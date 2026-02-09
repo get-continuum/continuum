@@ -1,0 +1,67 @@
+---
+title: Installation
+description: Install the Continuum SDK and CLI
+---
+
+## Prerequisites
+
+- Python 3.10 or later
+- pip
+
+## Install the SDK (OSS)
+
+```bash
+pip install continuum-sdk
+```
+
+This gives you the full deterministic layer: models, schema validation, lifecycle state machine, enforcement engine, and resolve flow.
+
+## Install the CLI
+
+```bash
+pip install continuum-cli
+```
+
+The CLI provides an inspector interface for managing decisions from the terminal:
+
+```bash
+continuum inspect <decision-id>
+continuum commit --title "Use PostgreSQL" --scope "repo:acme/backend"
+continuum supersede <old-id> --new <new-id>
+```
+
+## Install the Core Engine (optional)
+
+If you have a Core license, install the engine for LLM-backed resolution, ambiguity scoring, and advanced policies:
+
+```bash
+pip install continuum-sdk
+pip install -e core/
+```
+
+The SDK auto-discovers engine hooks when Core is installed — no configuration changes needed.
+
+## Verify Installation
+
+```python
+from continuum import ContinuumClient
+
+client = ContinuumClient()
+print("Continuum is ready!")
+```
+
+## Install the MCP Server (optional)
+
+To expose Continuum as MCP tools for agent frameworks:
+
+```bash
+pip install continuum-mcp-server
+```
+
+This starts a server with tools for `inspect`, `resolve`, `enforce`, and `commit`.
+
+## Next Steps
+
+<Card title="Local Mode" icon="laptop" href="/open-source/local-mode">
+  Run Continuum entirely on your machine with local JSON storage.
+</Card>

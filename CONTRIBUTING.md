@@ -9,8 +9,20 @@ cd continuum
 pip install -e "oss/sdk/python[dev]"
 pip install -e oss/cli
 
+./scripts/install-githooks.sh
+
 make test
 make lint
+```
+
+## Git hooks (recommended)
+
+Continuum includes repo-local git hooks in `.githooks/` to prevent unwanted commit trailers (e.g. `Co-authored-by: Cursor <cursoragent@cursor.com>`).
+
+Install them once per clone:
+
+```bash
+./scripts/install-githooks.sh
 ```
 
 ## OSS boundary checklist

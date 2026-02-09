@@ -1,0 +1,112 @@
+---
+title: Rejections That Stick
+description: How rejection decisions persist and prevent re-adoption of rejected approaches
+---
+
+## The Problem
+
+You tell an AI agent "Don't use MongoDB" in one session. In the next session — or when a teammate prompts the same agent — MongoDB is back on the table. The rejection didn't stick.
+
+## How Continuum Fixes This
+
+When you commit a **rejection decision**, Continuum records it as a durable, enforceable rule:
+
+```python
+from continuum import ContinuumClient
+
+client = ContinuumClient()
+
+decision = client.commit(
+    title="Reject MongoDB for user store",
+    scope="repo:acme/backend",
+    decision_type="rejection",
+    options=[
+        {"title": "PostgreSQL", "selected": True},
+        {"title": "MongoDB", "selected": False, "rejected_reason": "No ACID transactions"},
+    ],
+    rationale="Billing data requires ACID. MongoDB doesn't support multi-document ACID.",
+)
+```
+
+Now, **every future agent action** in `repo:acme/backend` that touches database selection will be checked against this decision.
+
+## Enforcement in Action
+
+When an agent tries to use MongoDB:
+
+```python
+result = client.enforce(
+    action={
+        "type": "generic",
+        "description": "select MongoDB for user store",
+    },
+    scope="repo:acme/backend",
+)
+
+print(result["verdict"])  # "block"
+print(result["reason"])   # "Action matches rejected option in decision 'dec_...'"
+```
+
+The agent gets a `block` verdict with a clear reason. It can present this to the user or automatically pivot to the selected option.
+
+For more control, use the `EnforcementEngine` directly:
+
+```python
+from continuum.enforce import EnforcementEngine, Action, ActionType
+
+decisions = client.list_decisions(scope="repo:acme/backend")
+engine = EnforcementEngine(decisions)
+
+action = Action(
+    type=ActionType.generic,
+    description="select MongoDB for user store",
+    scope="repo:acme/backend",
+)
+
+result = engine.evaluate(action)
+print(result.verdict)  # EnforcementVerdict.block
+print(result.reason)
+```
+
+## Override Policies
+
+The decision's `override_policy` (set via the `Enforcement` model) controls enforcement strictness:
+
+| Policy | What Happens |
+|--------|-------------|
+| `invalid_by_default` | **Block** — The rejected option cannot be used. **(Default)** |
+| `warn` | **Warn** — The option is allowed but generates a warning |
+| `allow` | **Inform** — The decision is advisory only |
+
+<Note>
+In the current SDK, `override_policy` defaults to `invalid_by_default` when creating decisions via `client.commit()`. To change this, update the decision's enforcement settings directly.
+</Note>
+
+## Why It Matters
+
+| Without Continuum | With Continuum |
+|-------------------|----------------|
+| Agent forgets rejections between sessions | Rejections persist as durable decisions |
+| Teammate's agent doesn't know your choices | Shared decisions enforce consistency |
+| "Don't use X" has to be repeated every time | Said once, enforced forever |
+| No audit trail of what was rejected | Full record: what, why, when, by whom |
+
+## Superseding a Rejection
+
+Decisions aren't set in stone forever. If circumstances change, supersede the old decision:
+
+```python
+new_decision = client.supersede(
+    old_id=decision.id,
+    new_title="Allow MongoDB for analytics (read-heavy, no ACID needed)",
+    scope="folder:src/analytics",
+    decision_type="preference",
+    options=[
+        {"title": "MongoDB", "selected": True},
+        {"title": "PostgreSQL", "selected": False, "rejected_reason": "Overkill for read-heavy analytics"},
+    ],
+    rationale="Analytics pipeline is read-heavy. MongoDB's flexible schema is a better fit.",
+)
+```
+
+The old rejection transitions to `superseded` and the new decision takes over — with a full audit trail linking the two.

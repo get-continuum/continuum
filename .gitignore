@@ -37,6 +37,15 @@ coverage.xml
 
 # Node
 node_modules/
+.next/
 
 # Docs build
 site/
+
+# Continuum local stores
+.continuum/
+.continuum-*/
+.continuum-demo/
+
+# Cursor / editor
+.cursor/

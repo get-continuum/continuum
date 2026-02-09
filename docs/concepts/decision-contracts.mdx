@@ -1,0 +1,137 @@
+---
+title: Decision Contracts
+description: The core data model — Decisions, Options, Rationale, and Lifecycle
+---
+
+## What is a Decision?
+
+A **Decision** is the atomic unit of institutional knowledge in Continuum. It records:
+
+- **What** was decided (title)
+- **Why** it was decided (rationale)
+- **What alternatives** were considered (options)
+- **What was rejected** and why (rejected options with reasons)
+- **Where** it applies (scope)
+- **How** it should be enforced (override policy)
+
+Decisions are immutable once committed to `active` status and are identified by a unique ID.
+
+## Contracts
+
+**Contracts** are JSON Schemas that define the shape of a valid Decision. They ensure every decision carries the required fields and can be validated deterministically.
+
+The current schema version is **0.1.0** (draft), using [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/schema).
+
+## Decision Fields
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `string` | Unique identifier. Pattern: `dec_[a-zA-Z0-9]+` |
+| `version` | `integer` | Version number, starting at 0 |
+| `status` | `string` | Lifecycle status: `draft`, `active`, `superseded`, `archived` |
+| `title` | `string` | Human-readable title |
+| `created_at` | `string` (date-time) | ISO 8601 creation timestamp |
+| `updated_at` | `string` (date-time) | ISO 8601 last-updated timestamp |
+
+### Optional Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rationale` | `string` | Why this decision was made |
+| `stakeholders` | `array[string]` | People or teams involved |
+| `metadata` | `object` | Arbitrary key-value metadata |
+
+### Options Considered
+
+The `options_considered` array records every option that was evaluated:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | `string` | Yes | Unique option identifier (`opt_*`) |
+| `title` | `string` | Yes | Description of the option |
+| `selected` | `boolean` | Yes | Whether this option was chosen |
+| `rejected_reason` | `string` | No | Why this option was rejected |
+
+### Context
+
+The `context` object captures what triggered the decision:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `trigger` | `string` | Yes | What triggered this decision |
+| `source` | `string` | Yes | Where the decision originated |
+| `timestamp` | `string` | Yes | When the triggering event occurred |
+| `actor` | `string` | No | Who or what triggered the decision |
+
+## Decision Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `interpretation` | Defines how an ambiguous term should be understood | "Revenue means net revenue excluding refunds" |
+| `rejection` | Explicitly rejects an option, tool, or approach | "Do not use MongoDB for this project" |
+| `preference` | Preferred choice among valid alternatives | "Prefer PostgreSQL over MySQL for new services" |
+| `behavior_rule` | Behavioral constraint for agents/workflows | "Always run linting before committing" |
+
+## Lifecycle
+
+Decisions follow a strict lifecycle with four states:
+
+```
+┌───────┐     ┌────────┐     ┌─────────────┐     ┌──────────┐
+│ draft │────▶│ active │────▶│ superseded  │────▶│ archived │
+└───────┘     └────────┘     └─────────────┘     └──────────┘
+                  │                                     ▲
+                  └─────────────────────────────────────┘
+```
+
+| From | To | Description |
+|------|----|-------------|
+| `draft` | `active` | Decision is approved and takes effect |
+| `active` | `superseded` | A new decision replaces this one |
+| `active` | `archived` | Decision is retired without replacement |
+| `superseded` | `archived` | Superseded decision is cleaned up |
+
+<Warning>
+Invalid transitions are rejected. You cannot un-activate a decision (`active` → `draft`), re-activate a superseded one, or transition out of `archived`.
+</Warning>
+
+## Immutability
+
+Once a decision transitions to `active`, these **core fields become immutable**:
+
+- `id`, `title`, `options_considered`, `context`, `decision_type`, `scope`
+
+Fields that may still be updated: `status` (forward transitions only), `updated_at`, `metadata`, `version`.
+
+## Override Policy
+
+Controls what happens when a rejected option is encountered:
+
+| Policy | Behavior |
+|--------|----------|
+| `invalid_by_default` | Rejected option is blocked. **(Default)** |
+| `warn` | Allowed but generates a warning |
+| `allow` | Informational only — no restriction |
+
+## Example Decision
+
+```json
+{
+  "id": "dec_abc123",
+  "version": 0,
+  "status": "active",
+  "title": "Use PostgreSQL for user store",
+  "decision_type": "rejection",
+  "scope": "repo:acme/backend",
+  "rationale": "Need ACID transactions for billing data.",
+  "options_considered": [
+    { "id": "opt_pg", "title": "PostgreSQL", "selected": true },
+    { "id": "opt_mongo", "title": "MongoDB", "selected": false, "rejected_reason": "No ACID" }
+  ],
+  "override_policy": "invalid_by_default",
+  "created_at": "2025-01-15T10:00:00Z",
+  "updated_at": "2025-01-15T10:00:00Z"
+}
+```

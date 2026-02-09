@@ -1,0 +1,128 @@
+---
+title: Quickstart
+description: Make your first decision in under 5 minutes
+---
+
+## Your First Decision
+
+Install the SDK, create a decision, and enforce it — all in a single script.
+
+### Step 1: Install
+
+```bash
+pip install continuum-sdk
+```
+
+### Step 2: Commit a Decision
+
+```python
+from continuum import ContinuumClient
+
+client = ContinuumClient()
+
+decision = client.commit(
+    title="Use PostgreSQL for user store",
+    scope="repo:acme/backend",
+    decision_type="rejection",
+    options=[
+        {"id": "opt_postgres", "title": "PostgreSQL", "selected": True},
+        {"id": "opt_mongo", "title": "MongoDB", "selected": False, "rejected_reason": "No ACID"},
+    ],
+    rationale="Need ACID transactions for billing data.",
+)
+
+print(f"Decision committed: {decision.id}")
+```
+
+### Step 3: Inspect It
+
+Retrieve the full decision record by ID:
+
+```python
+result = client.get(decision.id)
+print(result.title)       # "Use PostgreSQL for user store"
+print(result.status)      # "draft"
+print(result.enforcement.scope)  # "repo:acme/backend"
+```
+
+Or list all active decisions for a scope:
+
+```python
+active = client.inspect("repo:acme/backend")
+for d in active:
+    print(d["title"])
+```
+
+### Step 4: Enforce It
+
+```python
+from continuum.enforce import EnforcementEngine, Action, ActionType
+
+# Build an enforcement engine from your decisions
+decisions = client.list_decisions(scope="repo:acme/backend")
+engine = EnforcementEngine(decisions)
+
+# Evaluate an action
+action = Action(
+    type=ActionType.generic,
+    description="select MongoDB for user store",
+    scope="repo:acme/backend",
+)
+
+result = engine.evaluate(action)
+print(f"Verdict: {result.verdict}")  # allow | confirm | block | override
+print(f"Reason: {result.reason}")
+```
+
+Or use the convenience method on the client:
+
+```python
+result = client.enforce(
+    action={"type": "generic", "description": "select MongoDB for user store"},
+    scope="repo:acme/backend",
+)
+print(f"Verdict: {result['verdict']}")
+```
+
+Enforcement is **deterministic**: given the same decision and action context, you always get the same verdict.
+
+### Step 5: Resolve Against It
+
+Check whether a prior decision already covers a query:
+
+```python
+result = client.resolve(
+    query="What database should we use for the user service?",
+    scope="repo:acme/backend",
+)
+
+if result["status"] == "resolved":
+    print(f"Found prior decision: {result['resolved_context']['title']}")
+else:
+    clarification = result["clarification"]
+    print(f"Needs clarification: {clarification['question']}")
+```
+
+With the Core engine installed, resolution gains LLM-backed intelligence for semantic matching and ambiguity scoring.
+
+## What Just Happened?
+
+1. You **committed** a decision that rejects MongoDB in favor of PostgreSQL
+2. You **retrieved** the decision record by ID and by scope
+3. You **enforced** it — any agent action touching databases now goes through this rule
+4. You **resolved** a future query against it — the agent found the prior decision instead of guessing
+
+<Note>
+Without the Core engine, `resolve()` uses basic keyword matching. Install Core for LLM-backed intent resolution and ambiguity detection.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Rejections That Stick" icon="ban" href="/for-code/rejections">
+    Deep dive into rejection decisions and how they persist.
+  </Card>
+  <Card title="Ambiguity Gate" icon="circle-question" href="/for-code/ambiguity-gate">
+    Learn how Continuum detects and handles ambiguous prompts.
+  </Card>
+</CardGroup>
