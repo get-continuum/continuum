@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://getcontinuum.dev/schemas/decision-status.v0.schema.json",
+  "title": "Decision Status",
+  "description": "Valid status values and their transition rules for Continuum Decisions.",
+  "schema_version": "0.1.0",
+  "type": "string",
+  "enum": ["draft", "active", "superseded", "archived"],
+  "x-status-descriptions": {
+    "draft": "The decision is being authored and is not yet in effect. All fields are mutable.",
+    "active": "The decision is in effect and being enforced. Core fields become immutable.",
+    "superseded": "The decision has been replaced by a newer decision.",
+    "archived": "The decision is no longer relevant and is retained for historical purposes only."
+  },
+  "x-valid-transitions": {
+    "draft": ["active"],
+    "active": ["superseded", "archived"],
+    "superseded": ["archived"],
+    "archived": []
+  },
+  "x-transition-descriptions": {
+    "draft -> active": "Decision is approved and takes effect.",
+    "active -> superseded": "A new decision replaces this one.",
+    "active -> archived": "Decision is retired without replacement.",
+    "superseded -> archived": "Superseded decision is archived for cleanup."
+  }
+}
