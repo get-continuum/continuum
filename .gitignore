@@ -49,3 +49,6 @@ site/
 
 # Cursor / editor
 .cursor/
+
+# Local scaffolder artifacts
+demo/Library/
