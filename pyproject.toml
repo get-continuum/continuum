@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+import_mode = "importlib"
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
