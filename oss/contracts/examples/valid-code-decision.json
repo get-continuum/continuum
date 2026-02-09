@@ -1,0 +1,47 @@
+{
+  "id": "dec_pg001",
+  "version": 1,
+  "status": "active",
+  "title": "Reject MongoDB in favor of PostgreSQL for backend services",
+  "created_at": "2025-01-15T10:30:00Z",
+  "updated_at": "2025-01-16T09:00:00Z",
+  "rationale": "PostgreSQL provides stronger ACID guarantees, better support for relational data models, and superior performance for our query patterns. MongoDB's document model does not align with our data access patterns and introduces unnecessary complexity for joins.",
+  "stakeholders": [
+    "backend-team",
+    "platform-team",
+    "cto"
+  ],
+  "metadata": {
+    "reviewed_by": "architecture-board",
+    "review_date": "2025-01-16"
+  },
+  "options_considered": [
+    {
+      "id": "opt_pg",
+      "title": "PostgreSQL — relational database with strong ACID guarantees",
+      "selected": true
+    },
+    {
+      "id": "opt_mongo",
+      "title": "MongoDB — document-oriented NoSQL database",
+      "selected": false,
+      "rejected_reason": "Does not align with relational data access patterns; joins are expensive and complex."
+    },
+    {
+      "id": "opt_mysql",
+      "title": "MySQL — relational database with wide ecosystem support",
+      "selected": false,
+      "rejected_reason": "PostgreSQL offers better support for advanced types, JSON, and full-text search."
+    }
+  ],
+  "context": {
+    "trigger": "architecture_review",
+    "source": "pull_request",
+    "timestamp": "2025-01-14T16:00:00Z",
+    "actor": "alice@acme.com"
+  },
+  "scope": "repo:acme/backend",
+  "decision_type": "rejection",
+  "precedence": 10,
+  "override_policy": "invalid_by_default"
+}

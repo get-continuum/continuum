@@ -1,0 +1,13 @@
+{
+  "title": "This decision is missing required fields",
+  "created_at": "2025-02-01T12:00:00Z",
+  "updated_at": "2025-02-01T12:00:00Z",
+  "rationale": "This example intentionally omits 'id', 'version', and 'status' to demonstrate schema validation failure.",
+  "options_considered": [
+    {
+      "id": "opt_a",
+      "title": "Option A",
+      "selected": true
+    }
+  ]
+}
