@@ -16,10 +16,6 @@ oss/            Open-source layer (Apache-2.0)
   integrations/ LangGraph, LlamaIndex adapters
   examples/     Runnable examples
   docs/         Documentation
-
-core/           Engine implementations (BSL-1.1)
-  src/          Scorers, compiler, policies, resolution, LLM layer
-  tests/        Tests with mocked LLM responses
 ```
 
 ## Quick start
@@ -59,9 +55,9 @@ python examples/flagship-demo/flagship_demo.py
 
 The `oss/` layer ships deterministic logic only: schema validation, lifecycle state machine, rule-based enforcement, and abstract hooks for extension.
 
-Heuristic implementations (ambiguity scoring, decision compilation, risk scoring, LLM integration) live in `core/` under a BSL license. See [BOUNDARY.md](BOUNDARY.md).
+Heuristic implementations (ambiguity scoring, decision compilation, risk scoring, LLM integration) live in the separate `continuum-core` repository under a BSL license. See [BOUNDARY.md](BOUNDARY.md).
 
 ## License
 
 - `oss/`: [Apache-2.0](LICENSE)
-- `core/`: [BSL-1.1](core/LICENSE)
+- `continuum-core`: BSL-1.1 (separate repository)

@@ -36,22 +36,4 @@ jobs:
       - name: Run tests
         run: pytest oss/contracts/tests/ oss/sdk/python/tests/ -v
 
-  test-engine:
-    runs-on: ubuntu-latest
-    if: hashFiles('core/pyproject.toml') != ''
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install SDK + engine
-        run: |
-          pip install -e oss/sdk/python
-          pip install -e core/
-
-      - name: Run engine tests
-        run: pytest core/tests/ -v
+  # The BSL-licensed engine lives in the separate `continuum-core` repository.
