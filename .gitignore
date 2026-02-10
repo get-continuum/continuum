@@ -52,3 +52,7 @@ site/
 
 # Local scaffolder artifacts
 demo/Library/
+
+# Generated OpenAPI artifacts
+openapi.raw.json
+continuum-openapi*.json
