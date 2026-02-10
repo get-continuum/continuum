@@ -31,7 +31,8 @@ def load_schema(name: str) -> dict:
     if not path.suffix:
         path = path.with_suffix(".json")
     with open(path) as fh:
-        return json.load(fh)
+        result: dict = json.load(fh)
+        return result
 
 
 def validate_decision(data: dict) -> None:

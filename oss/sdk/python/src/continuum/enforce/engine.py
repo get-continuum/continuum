@@ -109,8 +109,8 @@ class EnforcementEngine:
         """Extract scope from a decision dict (may be nested under enforcement)."""
         enforcement = decision.get("enforcement")
         if isinstance(enforcement, dict):
-            return enforcement.get("scope", "")
-        return decision.get("scope", "")
+            return str(enforcement.get("scope", ""))
+        return str(decision.get("scope", ""))
 
     @staticmethod
     def _scope_matches(decision_scope: str, action_scope: str) -> bool:

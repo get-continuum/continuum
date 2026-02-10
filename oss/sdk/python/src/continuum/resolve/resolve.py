@@ -97,5 +97,5 @@ def _get_scope(decision: dict) -> str:
     """Extract scope from a decision dict."""
     enforcement = decision.get("enforcement")
     if isinstance(enforcement, dict):
-        return enforcement.get("scope", "")
-    return decision.get("scope", "")
+        return str(enforcement.get("scope", ""))
+    return str(decision.get("scope", ""))
