@@ -43,4 +43,30 @@ jobs:
       - name: Run tests
         run: pytest oss/contracts/tests/ oss/sdk/python/tests/ oss/cli/tests/ oss/mcp-server/tests/ oss/integrations/llamaindex/tests/ -v
 
+  build-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        pkg:
+          - oss/sdk/python
+          - oss/cli
+          - oss/mcp-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install --upgrade pip build twine
+
+      - name: Build
+        working-directory: ${{ matrix.pkg }}
+        run: python -m build
+
+      - name: Check distribution
+        working-directory: ${{ matrix.pkg }}
+        run: twine check dist/*
+
   # The BSL-licensed engine lives in the separate `continuum-core` repository.
