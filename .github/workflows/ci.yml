@@ -31,6 +31,9 @@ jobs:
           pip install -e oss/mcp-server
           pip install -e oss/integrations/llamaindex
 
+      - name: Check OSS boundary
+        run: bash scripts/check-boundary.sh
+
       - name: Lint with ruff
         run: ruff check oss/
 
