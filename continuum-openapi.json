@@ -1,0 +1,814 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Continuum Demo API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "HealthResponse",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "store_dir": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "store_dir"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inspect": {
+      "get": {
+        "summary": "Inspect",
+        "description": "List all saved decisions for a given scope. Use this to check what decisions already exist before committing new ones.",
+        "operationId": "inspect_inspect_get",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scope"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "InspectResponse",
+                  "properties": {
+                    "binding": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {}
+                      }
+                    }
+                  },
+                  "required": [
+                    "binding"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/decision/{decision_id}": {
+      "get": {
+        "summary": "Get Decision",
+        "operationId": "get_decision_decision__decision_id__get",
+        "parameters": [
+          {
+            "name": "decision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Decision Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "DecisionResponse",
+                  "properties": {
+                    "decision": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "integer"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "rationale": {
+                          "type": "string"
+                        },
+                        "options_considered": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {}
+                          }
+                        },
+                        "context": {
+                          "type": "object",
+                          "properties": {},
+                          "nullable": true
+                        },
+                        "enforcement": {
+                          "type": "object",
+                          "properties": {
+                            "scope": {
+                              "type": "string"
+                            },
+                            "decision_type": {
+                              "type": "string"
+                            },
+                            "supersedes": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "precedence": {
+                              "type": "integer",
+                              "nullable": true
+                            },
+                            "override_policy": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "stakeholders": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updated_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "decision"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/resolve": {
+      "post": {
+        "summary": "Resolve",
+        "description": "Check if an existing decision matches the user's intent. If status is 'needs_clarification' and no matched_decision_id is found, you should call /commit to save a NEW decision.",
+        "operationId": "resolve_resolve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "ResolveResponse",
+                  "properties": {
+                    "resolution": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string"
+                        },
+                        "resolved_context": {
+                          "type": "object",
+                          "properties": {},
+                          "nullable": true
+                        },
+                        "clarification": {
+                          "type": "object",
+                          "properties": {
+                            "question": {
+                              "type": "string"
+                            },
+                            "candidates": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {}
+                              }
+                            },
+                            "context": {
+                              "type": "object",
+                              "properties": {}
+                            }
+                          },
+                          "nullable": true
+                        },
+                        "matched_decision_id": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "resolution"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/enforce": {
+      "post": {
+        "summary": "Enforce",
+        "description": "Check whether a proposed action complies with existing decisions for the given scope. Do NOT use this to save or create decisions — use /commit for that. Do NOT call enforce after commit; commit alone is sufficient to save a decision.",
+        "operationId": "enforce_enforce_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnforceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "EnforceResponse",
+                  "properties": {
+                    "enforcement": {
+                      "type": "object",
+                      "properties": {}
+                    }
+                  },
+                  "required": [
+                    "enforcement"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/commit": {
+      "post": {
+        "summary": "Commit",
+        "description": "Save a new decision. Use this when the user states a preference, rule, or decision that should be remembered. This is the primary way to persist decisions. Call this after /resolve returns 'needs_clarification' with no match. After a successful commit, the workflow is COMPLETE — do NOT call /enforce afterward.",
+        "operationId": "commit_commit_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "CommitResponse",
+                  "properties": {
+                    "decision": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "integer"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "rationale": {
+                          "type": "string"
+                        },
+                        "options_considered": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {}
+                          }
+                        },
+                        "context": {
+                          "type": "object",
+                          "properties": {},
+                          "nullable": true
+                        },
+                        "enforcement": {
+                          "type": "object",
+                          "properties": {
+                            "scope": {
+                              "type": "string"
+                            },
+                            "decision_type": {
+                              "type": "string"
+                            },
+                            "supersedes": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "precedence": {
+                              "type": "integer",
+                              "nullable": true
+                            },
+                            "override_policy": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "stakeholders": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updated_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "decision"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/supersede": {
+      "post": {
+        "summary": "Supersede",
+        "description": "Replace an existing decision with an updated one. Use when the user wants to change or update a previously saved decision.",
+        "operationId": "supersede_supersede_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupersedeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "SupersedeResponse",
+                  "properties": {
+                    "decision": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "integer"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "rationale": {
+                          "type": "string"
+                        },
+                        "options_considered": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {}
+                          }
+                        },
+                        "context": {
+                          "type": "object",
+                          "properties": {},
+                          "nullable": true
+                        },
+                        "enforcement": {
+                          "type": "object",
+                          "properties": {
+                            "scope": {
+                              "type": "string"
+                            },
+                            "decision_type": {
+                              "type": "string"
+                            },
+                            "supersedes": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "precedence": {
+                              "type": "integer",
+                              "nullable": true
+                            },
+                            "override_policy": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "stakeholders": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "properties": {}
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updated_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "decision"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CommitRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "decision_type": {
+            "type": "string",
+            "title": "Decision Type"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "options": {
+            "items": {
+              "type": "object",
+              "properties": {}
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Options"
+          },
+          "stakeholders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Stakeholders"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {},
+            "nullable": true,
+            "title": "Metadata"
+          },
+          "override_policy": {
+            "type": "string",
+            "nullable": true,
+            "title": "Override Policy"
+          },
+          "precedence": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Precedence"
+          },
+          "supersedes": {
+            "type": "string",
+            "nullable": true,
+            "title": "Supersedes"
+          },
+          "activate": {
+            "type": "boolean",
+            "title": "Activate",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "scope",
+          "decision_type",
+          "rationale"
+        ],
+        "title": "CommitRequest"
+      },
+      "EnforceRequest": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "action": {
+            "type": "object",
+            "properties": {},
+            "title": "Action"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope"
+        ],
+        "title": "EnforceRequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ResolveRequest": {
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "candidates": {
+            "items": {
+              "type": "object",
+              "properties": {}
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Candidates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prompt",
+          "scope"
+        ],
+        "title": "ResolveRequest"
+      },
+      "SupersedeRequest": {
+        "properties": {
+          "old_id": {
+            "type": "string",
+            "title": "Old Id"
+          },
+          "new_title": {
+            "type": "string",
+            "title": "New Title"
+          },
+          "rationale": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rationale"
+          },
+          "options": {
+            "items": {
+              "type": "object",
+              "properties": {}
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Options"
+          },
+          "stakeholders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Stakeholders"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {},
+            "nullable": true,
+            "title": "Metadata"
+          },
+          "override_policy": {
+            "type": "string",
+            "nullable": true,
+            "title": "Override Policy"
+          },
+          "precedence": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Precedence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "old_id",
+          "new_title"
+        ],
+        "title": "SupersedeRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input",
+            "type": "string"
+          },
+          "ctx": {
+            "type": "object",
+            "properties": {},
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://mardi-empty-closest-nikon.trycloudflare.com"
+    }
+  ]
+}

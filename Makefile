@@ -1,3 +1,7 @@
+# Continuum OSS Monorepo
+# Core engine lives in the separate continuum-core repo (BSL-1.1).
+# This Makefile covers only the OSS layer (Apache-2.0).
+
 .PHONY: lint test typecheck install install-dev clean all
 
 all: lint typecheck test
@@ -10,22 +14,14 @@ install-dev:
 	pip install -e "oss/sdk/python[dev]"
 	pip install -e oss/cli
 
-install-engine:
-	pip install -e "core[dev]"
-
 lint:
-	ruff check oss/ core/src/ || true
+	ruff check oss/
 
 typecheck:
 	mypy oss/sdk/python/src/continuum/
 
 test:
-	pytest oss/contracts/tests/ oss/sdk/python/tests/ -v
-
-test-engine:
-	pytest core/tests/ -v
-
-test-all: test test-engine
+	pytest oss/contracts/tests/ oss/sdk/python/tests/ oss/cli/tests/ oss/mcp-server/tests/ -v
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

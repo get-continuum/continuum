@@ -1,0 +1,122 @@
+---
+title: "SQLite Memory Connector"
+description: "Use SQLiteMemorySource to enrich decisions with persistent memory signals"
+---
+
+# SQLite Memory Connector
+
+Continuum's `MemorySignalSource` protocol lets external memory systems inform decision resolution. The `SQLiteMemorySource` is a built-in, zero-dependency implementation using Python's standard library `sqlite3`.
+
+## Quick Start
+
+```python
+from continuum import ContinuumClient, SQLiteMemorySource
+
+# Create a persistent memory store
+memory = SQLiteMemorySource("signals.db")
+
+# Add some memory signals
+memory.add_signal(
+    content="Team prefers REST over GraphQL for public APIs",
+    scope="repo:acme/backend",
+    metadata={"source": "architecture-review", "confidence": 0.95},
+)
+
+memory.add_signal(
+    content="PostgreSQL chosen over MySQL for the data layer",
+    scope="repo:acme/backend",
+    metadata={"source": "tech-radar"},
+)
+
+# Wire memory into the client
+client = ContinuumClient(memory_source=memory)
+```
+
+## How It Works
+
+When you call `client.resolve(query=..., scope=...)`, the client:
+
+1. Loads all persisted decisions (as usual)
+2. If a `memory_source` is present, searches it for signals matching the query and scope
+3. Appends matching memory signals as additional candidates
+4. Runs the standard ambiguity gate with the enriched candidate set
+
+This means memory signals can **inform** the resolution process without replacing the decision contract model.
+
+## API Reference
+
+### `SQLiteMemorySource(db_path=":memory:")`
+
+Create a new memory source. Pass a file path for persistent storage, or use the default `:memory:` for transient usage.
+
+### `.add_signal(content, scope, metadata=None, signal_id=None)`
+
+Persist a memory signal.
+
+```python
+memory.add_signal(
+    content="Use feature flags for gradual rollouts",
+    scope="repo:acme/platform",
+    metadata={"source": "postmortem-2024-03"},
+)
+```
+
+### `.search(query, scope=None, limit=10)`
+
+Search signals by content substring (case-insensitive). Optionally filter by scope.
+
+```python
+results = memory.search("feature flags", scope="repo:acme/platform")
+# [{"id": "sig_...", "content": "Use feature flags...", "scope": "...", ...}]
+```
+
+### `.list_signals(scope=None, limit=100)`
+
+List all signals, optionally filtered by scope.
+
+### `.clear(scope=None)`
+
+Delete signals. Pass a scope to delete only that scope's signals, or omit to clear all.
+
+## File-Backed Persistence
+
+```python
+# Signals survive process restarts
+memory = SQLiteMemorySource("/path/to/signals.db")
+memory.add_signal(content="...", scope="...")
+
+# Later, in a new process:
+memory = SQLiteMemorySource("/path/to/signals.db")
+results = memory.search("...")  # finds previously stored signals
+```
+
+## Using with the CLI or MCP Server
+
+The SQLite memory source is wired through the SDK client. To use it with the CLI or MCP server, set up the client in your application code:
+
+```python
+from continuum import ContinuumClient, SQLiteMemorySource
+
+memory = SQLiteMemorySource(".continuum/signals.db")
+client = ContinuumClient(memory_source=memory)
+
+# Now resolve() will enrich with memory signals
+result = client.resolve(query="API design approach", scope="repo:myproject")
+```
+
+## Bring Your Own Memory
+
+`SQLiteMemorySource` is intentionally simple. For production use cases, you can implement the `MemorySignalSource` protocol with any backend:
+
+```python
+from continuum.memory import MemorySignalSource
+
+class MyMemorySource:
+    """Custom memory source (e.g., backed by Mem0, Zep, or Letta)."""
+
+    def search(self, query: str, *, scope: str | None = None, limit: int = 10) -> list[dict]:
+        # Your implementation here
+        ...
+```
+
+Pass your custom source to `ContinuumClient(memory_source=my_source)` and it works identically.

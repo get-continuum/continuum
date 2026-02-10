@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Optional
 
 import typer
 
@@ -16,30 +17,176 @@ def _client() -> ContinuumClient:
     return ContinuumClient()
 
 
+# ------------------------------------------------------------------
+# inspect
+# ------------------------------------------------------------------
+
+
 @app.command()
-def inspect(decision_id: str = typer.Argument(..., help="ID of the decision to inspect")) -> None:
-    """Print a decision's details as formatted JSON."""
+def inspect(
+    decision_id: Optional[str] = typer.Argument(None, help="ID of the decision to inspect"),
+    scope: Optional[str] = typer.Option(None, "--scope", "-s", help="Scope to inspect (returns active binding set)"),
+) -> None:
+    """Inspect a decision by ID, or the active binding set for a scope."""
+    if not decision_id and not scope:
+        typer.echo("Error: provide either a decision_id argument or --scope.", err=True)
+        raise typer.Exit(code=1)
+    if decision_id and scope:
+        typer.echo("Error: provide either a decision_id argument or --scope, not both.", err=True)
+        raise typer.Exit(code=1)
+
     try:
         client = _client()
-        decision = client.get(decision_id)
-        typer.echo(json.dumps(json.loads(decision.model_dump_json()), indent=2))
+        if scope:
+            binding = client.inspect(scope)
+            typer.echo(json.dumps(binding, indent=2, default=str))
+        else:
+            assert decision_id is not None
+            decision = client.get(decision_id)
+            typer.echo(json.dumps(json.loads(decision.model_dump_json()), indent=2))
     except ContinuumError as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1)
 
 
+# ------------------------------------------------------------------
+# resolve
+# ------------------------------------------------------------------
+
+
+@app.command()
+def resolve(
+    prompt: str = typer.Argument(..., help="The agent prompt to resolve against prior decisions"),
+    scope: str = typer.Option(..., "--scope", "-s", help="Hierarchical scope identifier"),
+    candidates: Optional[str] = typer.Option(
+        None, "--candidates", "-c", help="JSON array of candidate options (e.g. '[{\"id\":\"a\",\"title\":\"A\"}]')"
+    ),
+) -> None:
+    """Check whether a prior decision covers the given prompt and scope."""
+    try:
+        client = _client()
+        candidate_list = json.loads(candidates) if candidates else None
+        result = client.resolve(query=prompt, scope=scope, candidates=candidate_list)
+        typer.echo(json.dumps(result, indent=2, default=str))
+    except json.JSONDecodeError:
+        typer.echo("Error: --candidates must be valid JSON.", err=True)
+        raise typer.Exit(code=1)
+    except ContinuumError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+
+# ------------------------------------------------------------------
+# enforce
+# ------------------------------------------------------------------
+
+
+@app.command()
+def enforce(
+    scope: str = typer.Option(..., "--scope", "-s", help="Scope to evaluate enforcement within"),
+    action_type: str = typer.Option("generic", "--action-type", "-t", help="Action type (e.g. code_change, migration)"),
+    action_detail: str = typer.Option(
+        ..., "--action-detail", "-d", help='JSON object describing the action (e.g. \'{"description":"rewrite auth"}\')'
+    ),
+) -> None:
+    """Evaluate enforcement rules for a proposed action in a scope."""
+    try:
+        action = json.loads(action_detail)
+        if isinstance(action, str):
+            action = {"description": action}
+        action.setdefault("type", action_type)
+    except json.JSONDecodeError:
+        typer.echo("Error: --action-detail must be valid JSON.", err=True)
+        raise typer.Exit(code=1)
+
+    try:
+        client = _client()
+        result = client.enforce(action=action, scope=scope)
+        typer.echo(json.dumps(result, indent=2, default=str))
+    except ContinuumError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+
+# ------------------------------------------------------------------
+# list
+# ------------------------------------------------------------------
+
+
+@app.command(name="list")
+def list_decisions(
+    scope: Optional[str] = typer.Option(None, "--scope", "-s", help="Filter by enforcement scope"),
+    status: Optional[str] = typer.Option(None, "--status", help="Filter by status (draft, active, superseded, archived)"),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON instead of table"),
+) -> None:
+    """List decisions, optionally filtered by scope and/or status."""
+    try:
+        client = _client()
+        decisions = client.list_decisions(scope=scope)
+
+        if status:
+            decisions = [d for d in decisions if str(d.status) == status or d.status == status]
+
+        if output_json:
+            typer.echo(json.dumps([json.loads(d.model_dump_json()) for d in decisions], indent=2))
+            return
+
+        if not decisions:
+            typer.echo("No decisions found.")
+            return
+
+        typer.echo(f"{'ID':<20} {'Status':<12} {'Type':<18} {'Title'}")
+        typer.echo("-" * 75)
+        for d in decisions:
+            dec_type = ""
+            if d.enforcement is not None:
+                dec_type = (
+                    d.enforcement.get("decision_type", "")
+                    if isinstance(d.enforcement, dict)
+                    else str(d.enforcement.decision_type)
+                )
+            typer.echo(f"{d.id:<20} {str(d.status):<12} {dec_type:<18} {d.title}")
+    except ContinuumError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+
+# ------------------------------------------------------------------
+# commit
+# ------------------------------------------------------------------
+
+
 @app.command()
 def commit(
     title: str = typer.Argument(..., help="Title of the decision"),
-    scope: str = typer.Option(..., help="Enforcement scope (e.g. 'api', 'sdk')"),
+    scope: str = typer.Option(..., "--scope", "-s", help="Enforcement scope (e.g. 'repo:acme/backend')"),
     decision_type: str = typer.Option(
         ...,
         "--type",
         help="Decision type: interpretation, rejection, preference, behavior_rule",
     ),
-    rationale: str | None = typer.Option(None, help="Rationale for the decision"),
+    rationale: Optional[str] = typer.Option(None, "--rationale", "-r", help="Rationale for the decision"),
+    options: Optional[str] = typer.Option(None, "--options", help="JSON array of options considered"),
+    stakeholders: Optional[list[str]] = typer.Option(None, "--stakeholder", help="Stakeholder (repeatable)"),
+    metadata: Optional[str] = typer.Option(None, "--metadata", help="JSON object of metadata"),
+    override_policy: Optional[str] = typer.Option(None, "--override-policy", help="Override policy: invalid_by_default | warn | allow"),
+    precedence: Optional[int] = typer.Option(None, "--precedence", help="Precedence for conflict resolution"),
+    supersedes: Optional[str] = typer.Option(None, "--supersedes", help="Decision ID this supersedes"),
+    activate: bool = typer.Option(False, "--activate", help="Transition to active immediately"),
 ) -> None:
     """Create and persist a new decision."""
+    try:
+        parsed_options = json.loads(options) if options else None
+    except json.JSONDecodeError:
+        typer.echo("Error: --options must be valid JSON array.", err=True)
+        raise typer.Exit(code=1)
+
+    try:
+        parsed_metadata = json.loads(metadata) if metadata else None
+    except json.JSONDecodeError:
+        typer.echo("Error: --metadata must be valid JSON object.", err=True)
+        raise typer.Exit(code=1)
+
     try:
         client = _client()
         decision = client.commit(
@@ -47,23 +194,86 @@ def commit(
             scope=scope,
             decision_type=decision_type,
             rationale=rationale,
+            options=parsed_options,
+            stakeholders=list(stakeholders) if stakeholders else None,
+            metadata=parsed_metadata,
+            override_policy=override_policy,
+            precedence=precedence,
+            supersedes=supersedes,
         )
+        if activate:
+            decision = client.update_status(decision.id, "active")
         typer.echo(json.dumps(json.loads(decision.model_dump_json()), indent=2))
     except ContinuumError as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1)
 
 
+# ------------------------------------------------------------------
+# supersede
+# ------------------------------------------------------------------
+
+
 @app.command()
-def supersede(decision_id: str = typer.Argument(..., help="ID of the decision to supersede")) -> None:
-    """Transition a decision to the 'superseded' status."""
+def supersede(
+    decision_id: str = typer.Argument(..., help="ID of the decision to supersede"),
+    new_title: Optional[str] = typer.Option(None, "--new-title", help="Title for the replacement decision"),
+    rationale: Optional[str] = typer.Option(None, "--rationale", "-r", help="Rationale for replacement"),
+    options: Optional[str] = typer.Option(None, "--options", help="JSON array of options considered"),
+    stakeholders: Optional[list[str]] = typer.Option(None, "--stakeholder", help="Stakeholder (repeatable)"),
+    metadata: Optional[str] = typer.Option(None, "--metadata", help="JSON object of metadata"),
+    override_policy: Optional[str] = typer.Option(None, "--override-policy", help="Override policy"),
+    precedence: Optional[int] = typer.Option(None, "--precedence", help="Precedence for conflict resolution"),
+) -> None:
+    """Supersede an existing decision. With --new-title, creates a full replacement."""
+    try:
+        parsed_options = json.loads(options) if options else None
+    except json.JSONDecodeError:
+        typer.echo("Error: --options must be valid JSON array.", err=True)
+        raise typer.Exit(code=1)
+
+    try:
+        parsed_metadata = json.loads(metadata) if metadata else None
+    except json.JSONDecodeError:
+        typer.echo("Error: --metadata must be valid JSON object.", err=True)
+        raise typer.Exit(code=1)
+
     try:
         client = _client()
-        updated = client.update_status(decision_id, "superseded")
-        typer.echo(f"Decision {updated.id} is now superseded.")
+        if new_title:
+            # Full replacement: new decision + activate
+            kwargs: dict = {}
+            if rationale is not None:
+                kwargs["rationale"] = rationale
+            if parsed_options is not None:
+                kwargs["options"] = parsed_options
+            if stakeholders:
+                kwargs["stakeholders"] = list(stakeholders)
+            if parsed_metadata is not None:
+                kwargs["metadata"] = parsed_metadata
+            if override_policy is not None:
+                kwargs["override_policy"] = override_policy
+            if precedence is not None:
+                kwargs["precedence"] = precedence
+
+            new_dec = client.supersede(
+                old_id=decision_id,
+                new_title=new_title,
+                **kwargs,
+            )
+            typer.echo(json.dumps(json.loads(new_dec.model_dump_json()), indent=2))
+        else:
+            # Simple status transition (backward-compatible)
+            updated = client.update_status(decision_id, "superseded")
+            typer.echo(f"Decision {updated.id} is now superseded.")
     except ContinuumError as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1)
+
+
+# ------------------------------------------------------------------
+# scopes
+# ------------------------------------------------------------------
 
 
 @app.command()

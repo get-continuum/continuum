@@ -54,7 +54,8 @@
         "pages": [
           "cookbooks/flagship-same-prompt",
           "cookbooks/plan-mode-complement",
-          "cookbooks/multi-agent-code"
+          "cookbooks/multi-agent-code",
+          "cookbooks/sqlite-memory"
         ]
       },
       {

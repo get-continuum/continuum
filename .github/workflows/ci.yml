@@ -22,10 +22,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install jsonschema pydantic pytest ruff mypy typer types-jsonschema
+        run: pip install jsonschema pydantic pytest ruff mypy typer types-jsonschema "mcp>=1.0"
 
-      - name: Install SDK
-        run: pip install -e oss/sdk/python
+      - name: Install packages
+        run: |
+          pip install -e oss/sdk/python
+          pip install -e oss/cli
+          pip install -e oss/mcp-server
+          pip install -e oss/integrations/llamaindex
 
       - name: Lint with ruff
         run: ruff check oss/
@@ -34,6 +38,6 @@ jobs:
         run: mypy oss/sdk/python/src/continuum/
 
       - name: Run tests
-        run: pytest oss/contracts/tests/ oss/sdk/python/tests/ -v
+        run: pytest oss/contracts/tests/ oss/sdk/python/tests/ oss/cli/tests/ oss/mcp-server/tests/ oss/integrations/llamaindex/tests/ -v
 
   # The BSL-licensed engine lives in the separate `continuum-core` repository.

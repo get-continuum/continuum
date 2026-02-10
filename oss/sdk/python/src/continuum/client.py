@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from continuum.enforce.engine import EnforcementEngine
 from continuum.enforce.types import Action, ActionType, EnforcementResult
 from continuum.exceptions import DecisionNotFoundError
 from continuum.lifecycle import transition
+from continuum.memory import MemorySignalSource
 from continuum.models import (
     Decision,
     DecisionStatus,
@@ -31,12 +33,20 @@ class ContinuumClient:
     storage_dir:
         Root directory for persisted decisions.  Defaults to ``.continuum/``
         in the current working directory.
+    memory_source:
+        Optional :class:`MemorySignalSource` implementation.  When provided,
+        :meth:`resolve` enriches candidates with memory signals.
     """
 
-    def __init__(self, storage_dir: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        storage_dir: str | Path | None = None,
+        memory_source: MemorySignalSource | None = None,
+    ) -> None:
         self._storage_dir = Path(storage_dir) if storage_dir else Path(".continuum")
         self._decisions_dir = self._storage_dir / "decisions"
         self._decisions_dir.mkdir(parents=True, exist_ok=True)
+        self._memory_source = memory_source
 
     # ------------------------------------------------------------------
     # Public API
@@ -194,6 +204,9 @@ class ContinuumClient:
     ) -> dict:
         """Run the ambiguity gate for *query* against decisions in *scope*.
 
+        If a ``memory_source`` was provided at construction time, memory signals
+        are searched and appended to the candidate list before resolution.
+
         Parameters
         ----------
         query:
@@ -210,9 +223,21 @@ class ContinuumClient:
         """
         decisions = self.list_decisions()
         decision_dicts = [d.model_dump(mode="json") for d in decisions]
+
+        enriched_candidates = list(candidates or [])
+
+        # Enrich candidates from memory signals when a source is available.
+        if self._memory_source is not None:
+            signals = self._memory_source.search(query, scope=scope, limit=5)
+            for sig in signals:
+                enriched_candidates.append({
+                    "id": sig.get("id", ""),
+                    "title": sig.get("content", ""),
+                })
+
         candidate_objs = [
             CandidateOption(id=c["id"], title=c["title"])
-            for c in (candidates or [])
+            for c in enriched_candidates
         ]
         result: ResolveResult = _resolve_fn(
             query=query,

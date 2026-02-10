@@ -5,6 +5,7 @@ from __future__ import annotations
 __version__ = "0.1.1"
 
 from continuum.client import ContinuumClient
+from continuum.memory_sqlite import SQLiteMemorySource
 from continuum.models import Decision, DecisionContext, Option
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "Decision",
     "DecisionContext",
     "Option",
+    "SQLiteMemorySource",
 ]
