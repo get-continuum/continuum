@@ -4,12 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "continuum-demo-api"
-version = "0.1.0"
-description = "FastAPI wrapper for Continuum SDK (demo UI backend)"
+version = "0.2.0"
+description = "FastAPI wrapper for Continuum SDK (demo + hosted MVP backend)"
 requires-python = ">=3.10"
 dependencies = [
   "fastapi",
   "uvicorn[standard]",
   "continuum-sdk>=0.1.1",
+]
+
+[project.optional-dependencies]
+hosted = [
+  "aiosqlite",
 ]
 

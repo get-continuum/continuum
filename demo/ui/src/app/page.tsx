@@ -15,7 +15,12 @@ type DecisionRecord = {
   id: string;
   title: string;
   status: string;
-  enforcement?: { scope?: string; supersedes?: string; [k: string]: unknown };
+  version?: number;
+  rationale?: string;
+  options_considered?: Array<{ id: string; title: string; selected: boolean; rejected_reason?: string }>;
+  enforcement?: { scope?: string; decision_type?: string; supersedes?: string; override_policy?: string; [k: string]: unknown };
+  created_at?: string;
+  updated_at?: string;
   [k: string]: unknown;
 };
 
@@ -65,6 +70,7 @@ export default function Home() {
   const [binding, setBinding] = useState<DecisionRecord[]>([]);
   const [lastResolution, setLastResolution] = useState<ResolveResult | null>(null);
   const [lastEnforcement, setLastEnforcement] = useState<EnforcementResult | null>(null);
+  const [selectedDecision, setSelectedDecision] = useState<DecisionRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const clarificationCandidates = useMemo(() => {
     if (lastResolution?.status === "needs_clarification") {
@@ -160,7 +166,7 @@ export default function Home() {
       });
       setChat((c) => [
         ...c,
-        { role: "system", text: `Promoted to decision: production-ready → ${selectedTitle}` },
+        { role: "system", text: `Promoted to decision: production-ready -> ${selectedTitle}` },
       ]);
       setLastResolution(null);
       await refreshInspector();
@@ -188,10 +194,9 @@ export default function Home() {
   }
 
   async function supersedeProductionReady() {
-    // Find an active production-ready interpretation decision (if any).
     const active = binding.find((d) => d?.title === "production-ready" && d?.status === "active");
     if (!active?.id) {
-      setChat((c) => [...c, { role: "system", text: "No active 'production-ready' decision found to supersede." }]);
+      setChat((c) => [...c, { role: "system", text: "No active production-ready decision found to supersede." }]);
       return;
     }
     setLoading(true);
@@ -202,7 +207,7 @@ export default function Home() {
         rationale: "Production-ready now includes linting.",
         metadata: { selected_option_id: "opt_tests_errors_lint" },
       });
-      setChat((c) => [...c, { role: "system", text: `Superseded decision ${active.id} → new active version.` }]);
+      setChat((c) => [...c, { role: "system", text: `Superseded decision ${active.id} -> new active version.` }]);
       await refreshInspector();
     } finally {
       setLoading(false);
@@ -214,9 +219,9 @@ export default function Home() {
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="mb-6 flex items-start justify-between gap-6">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Continuum Demo UI</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Continuum</h1>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              Chat (left) + Decision Inspector (right). Store is repo-local <code>.continuum/</code>.
+              Decision Control Plane for AI Agents &mdash; Ambiguity Gate + Decision Inspector
             </p>
           </div>
           <div className="w-full max-w-md">
@@ -240,14 +245,14 @@ export default function Home() {
                 disabled={loading}
                 className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
               >
-                Try “full rewrite”
+                Try full rewrite
               </button>
               <button
                 onClick={supersedeProductionReady}
                 disabled={loading}
                 className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
               >
-                Supersede “production-ready”
+                Supersede production-ready
               </button>
             </div>
           </div>
@@ -258,7 +263,7 @@ export default function Home() {
           <div className="lg:col-span-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">Chat</h2>
-              <span className="text-xs text-zinc-500">{loading ? "working…" : "idle"}</span>
+              <span className="text-xs text-zinc-500">{loading ? "working..." : "idle"}</span>
             </div>
             <div className="mt-4 h-[440px] overflow-auto rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm dark:border-zinc-900 dark:bg-black">
               <div className="space-y-3">
@@ -324,67 +329,187 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Inspector */}
-          <div className="lg:col-span-2 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Decision Inspector</h2>
-              <button
-                onClick={refreshInspector}
-                disabled={loading}
-                className="text-xs text-zinc-600 hover:text-zinc-900 disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-50"
-              >
-                Refresh
-              </button>
-            </div>
+          {/* Right panel: Inspector + Artifact */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Decision Inspector */}
+            <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold">Decision Inspector</h2>
+                <button
+                  onClick={refreshInspector}
+                  disabled={loading}
+                  className="text-xs text-zinc-600 hover:text-zinc-900 disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-50"
+                >
+                  Refresh
+                </button>
+              </div>
 
-            <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
-              Active binding set for <code>{scope}</code>
-            </div>
+              <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400">
+                Active binding set for <code>{scope}</code>
+                <span className="ml-2 font-medium">{binding.length} decision{binding.length !== 1 ? "s" : ""}</span>
+              </div>
 
-            <div className="mt-3 space-y-2">
-              {binding.length === 0 ? (
-                <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-zinc-900 dark:bg-black dark:text-zinc-400">
-                  No active decisions yet. Click “Seed demo decisions”.
+              <div className="mt-3 max-h-[260px] space-y-2 overflow-auto">
+                {binding.length === 0 ? (
+                  <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-zinc-900 dark:bg-black dark:text-zinc-400">
+                    No active decisions yet. Click &quot;Seed demo decisions&quot;.
+                  </div>
+                ) : (
+                  binding.map((d) => (
+                    <button
+                      key={d.id}
+                      onClick={() => setSelectedDecision(d)}
+                      className={[
+                        "w-full text-left rounded-lg border p-3 text-sm transition-colors",
+                        selectedDecision?.id === d.id
+                          ? "border-zinc-900 bg-zinc-100 dark:border-zinc-100 dark:bg-zinc-900"
+                          : "border-zinc-100 bg-zinc-50 hover:border-zinc-300 dark:border-zinc-900 dark:bg-black dark:hover:border-zinc-700",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-medium">{d.title}</div>
+                        <span className={[
+                          "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                          d.status === "active" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
+                          : d.status === "superseded" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                          : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+                        ].join(" ")}>{d.status}</span>
+                      </div>
+                      <div className="mt-1 text-[11px] text-zinc-600 dark:text-zinc-400">
+                        <code>{d.id}</code>
+                        {d.enforcement?.decision_type && (
+                          <span className="ml-2 rounded bg-zinc-200 px-1.5 py-0.5 dark:bg-zinc-800">{d.enforcement.decision_type}</span>
+                        )}
+                        {d.enforcement?.supersedes && (
+                          <span className="ml-2 text-amber-600 dark:text-amber-400">supersedes {d.enforcement.supersedes.slice(0, 16)}...</span>
+                        )}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {lastEnforcement ? (
+                <div className={[
+                  "mt-4 rounded-lg border p-3 text-sm",
+                  lastEnforcement.verdict === "block"
+                    ? "border-red-200 bg-red-50 dark:border-red-900/40 dark:bg-red-950/30"
+                    : lastEnforcement.verdict === "confirm"
+                    ? "border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/30"
+                    : "border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/30",
+                ].join(" ")}>
+                  <div className="text-xs font-semibold">Enforcement Result</div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className={[
+                      "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                      lastEnforcement.verdict === "block" ? "bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-300"
+                      : lastEnforcement.verdict === "confirm" ? "bg-amber-200 text-amber-900 dark:bg-amber-900/50 dark:text-amber-300"
+                      : "bg-emerald-200 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-300",
+                    ].join(" ")}>{lastEnforcement.verdict}</span>
+                    <span className="text-xs text-zinc-600 dark:text-zinc-400">{lastEnforcement.reason}</span>
+                  </div>
                 </div>
-              ) : (
-                binding.map((d) => (
-                  <div
-                    key={d.id}
-                    className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm dark:border-zinc-900 dark:bg-black"
+              ) : null}
+            </div>
+
+            {/* Decision Artifact */}
+            {selectedDecision && (
+              <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold">Decision Artifact</h2>
+                  <button
+                    onClick={() => setSelectedDecision(null)}
+                    className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="font-medium">{d.title}</div>
-                      <div className="text-[11px] text-zinc-500">{d.status}</div>
+                    Close
+                  </button>
+                </div>
+                <div className="mt-3 space-y-3 text-xs">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="font-medium text-zinc-500 dark:text-zinc-400">ID</div>
+                      <code className="text-zinc-900 dark:text-zinc-100">{selectedDecision.id}</code>
                     </div>
-                    <div className="mt-1 text-[11px] text-zinc-600 dark:text-zinc-400">
-                      <div>
-                        <span className="font-medium">id</span>: <code>{d.id}</code>
-                      </div>
-                      <div>
-                        <span className="font-medium">scope</span>:{" "}
-                        <code>{d.enforcement?.scope ?? "unknown"}</code>
-                      </div>
-                      {d.enforcement?.supersedes ? (
-                        <div>
-                          <span className="font-medium">supersedes</span>:{" "}
-                          <code>{d.enforcement.supersedes}</code>
-                        </div>
-                      ) : null}
+                    <div>
+                      <div className="font-medium text-zinc-500 dark:text-zinc-400">Version</div>
+                      <span>v{selectedDecision.version ?? 0}</span>
+                    </div>
+                    <div>
+                      <div className="font-medium text-zinc-500 dark:text-zinc-400">Type</div>
+                      <span className="rounded bg-zinc-200 px-1.5 py-0.5 dark:bg-zinc-800">
+                        {selectedDecision.enforcement?.decision_type ?? "unknown"}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="font-medium text-zinc-500 dark:text-zinc-400">Scope</div>
+                      <code>{selectedDecision.enforcement?.scope ?? "unknown"}</code>
+                    </div>
+                    <div>
+                      <div className="font-medium text-zinc-500 dark:text-zinc-400">Override Policy</div>
+                      <span>{selectedDecision.enforcement?.override_policy ?? "invalid_by_default"}</span>
+                    </div>
+                    <div>
+                      <div className="font-medium text-zinc-500 dark:text-zinc-400">Status</div>
+                      <span>{selectedDecision.status}</span>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
 
-            {lastEnforcement ? (
-              <div className="mt-4 rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm dark:border-zinc-900 dark:bg-black">
-                <div className="text-xs font-semibold">Last enforcement</div>
-                <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                  Verdict: <span className="font-medium">{lastEnforcement.verdict}</span>
+                  {selectedDecision.rationale && (
+                    <div>
+                      <div className="font-medium text-zinc-500 dark:text-zinc-400">Rationale</div>
+                      <div className="mt-1 rounded-lg border border-zinc-100 bg-zinc-50 p-2 text-zinc-800 dark:border-zinc-900 dark:bg-black dark:text-zinc-200">
+                        {selectedDecision.rationale}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedDecision.options_considered && selectedDecision.options_considered.length > 0 && (
+                    <div>
+                      <div className="font-medium text-zinc-500 dark:text-zinc-400">Options Considered</div>
+                      <div className="mt-1 space-y-1">
+                        {selectedDecision.options_considered.map((opt) => (
+                          <div
+                            key={opt.id}
+                            className={[
+                              "flex items-center gap-2 rounded-md border px-2 py-1.5",
+                              opt.selected
+                                ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/30"
+                                : "border-zinc-100 bg-zinc-50 dark:border-zinc-900 dark:bg-black",
+                            ].join(" ")}
+                          >
+                            <span className={opt.selected ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400"}>
+                              {opt.selected ? "+" : "-"}
+                            </span>
+                            <span className={opt.selected ? "font-medium" : "line-through opacity-60"}>
+                              {opt.title}
+                            </span>
+                            {opt.rejected_reason && (
+                              <span className="ml-auto text-[10px] text-zinc-500">({opt.rejected_reason})</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedDecision.enforcement?.supersedes && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 dark:border-amber-900/40 dark:bg-amber-950/30">
+                      <span className="font-medium text-amber-800 dark:text-amber-300">Supersedes:</span>{" "}
+                      <code className="text-amber-900 dark:text-amber-200">{selectedDecision.enforcement.supersedes}</code>
+                    </div>
+                  )}
+
+                  {selectedDecision.created_at && (
+                    <div className="text-[10px] text-zinc-400">
+                      Created: {new Date(selectedDecision.created_at).toLocaleString()}
+                      {selectedDecision.updated_at && selectedDecision.updated_at !== selectedDecision.created_at && (
+                        <> | Updated: {new Date(selectedDecision.updated_at).toLocaleString()}</>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{lastEnforcement.reason}</div>
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       </div>

@@ -1,0 +1,28 @@
+# Continuum configuration
+# Copy to ./continuum.yaml or ~/.continuum/config.yaml
+
+version: "0.1"
+
+# Mode: "local" | "hosted" | "demo"
+# - local:  store + engine + mcp + cli (default)
+# - hosted: store + engine + api + auth
+# - demo:   store + engine + ambiguity_gate + inspector
+mode: local
+
+# Override default capabilities for the mode (optional).
+# capabilities:
+#   - store
+#   - engine
+#   - mcp
+#   - cli
+
+# Store configuration
+store:
+  backend: file     # "file" | "sqlite" | "postgres"
+  path: .continuum
+
+# Optional adapter integrations
+adapters:
+  model: null         # "openai" | "anthropic" | null
+  orchestrator: null   # "langgraph" | "crewai" | null
+  memory: null         # "mem0" | "zep" | "sqlite" | null

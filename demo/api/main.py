@@ -4,12 +4,14 @@ import os
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from continuum.client import ContinuumClient
 from continuum.exceptions import ContinuumError
+
+from auth.middleware import WorkspaceContext, require_workspace
 
 
 def _default_store_dir() -> str:
@@ -59,6 +61,15 @@ class CommitRequest(BaseModel):
     activate: bool = False
 
 
+class CommitSimpleRequest(BaseModel):
+    """Simplified commit for quick decision capture from chat feedback."""
+
+    title: str
+    scope: str
+    decision_type: str = "interpretation"
+    rationale: Optional[str] = None
+
+
 class SupersedeRequest(BaseModel):
     old_id: str
     new_title: str
@@ -73,6 +84,30 @@ class SupersedeRequest(BaseModel):
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {"ok": True, "store_dir": _default_store_dir()}
+
+
+@app.post("/commit_simple")
+def commit_simple(
+    req: CommitSimpleRequest,
+    ws: WorkspaceContext = Depends(require_workspace),
+) -> dict[str, Any]:
+    """Simplified commit: title + scope + type + optional rationale.
+
+    Immediately activates the decision. Designed for quick capture
+    from chat feedback (e.g. 'revenue means net_revenue').
+    """
+    try:
+        client = _client()
+        dec = client.commit(
+            title=req.title,
+            scope=req.scope,
+            decision_type=req.decision_type,
+            rationale=req.rationale,
+        )
+        dec = client.update_status(dec.id, "active")
+        return {"decision": dec.model_dump(mode="json"), "workspace_id": ws.workspace_id}
+    except ContinuumError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/inspect")

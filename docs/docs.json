@@ -68,6 +68,13 @@
         ]
       },
       {
+        "group": "SDKs",
+        "pages": [
+          "sdks/python",
+          "sdks/typescript"
+        ]
+      },
+      {
         "group": "API Reference",
         "pages": [
           "api-reference/overview"

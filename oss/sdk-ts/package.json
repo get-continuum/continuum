@@ -1,0 +1,45 @@
+{
+  "name": "@get-continuum/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for the Continuum decision control plane",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "continuum",
+    "decision",
+    "ai",
+    "agents",
+    "mcp",
+    "control-plane"
+  ],
+  "author": "Continuum <hello@getcontinuum.ai>",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/get-continuum/continuum.git",
+    "directory": "oss/sdk-ts"
+  },
+  "homepage": "https://getcontinuum.ai",
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0",
+    "eslint": "^9.0.0"
+  }
+}

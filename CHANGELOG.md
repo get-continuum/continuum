@@ -3,6 +3,22 @@
 All notable changes to this repository are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [v0.2.0] — 2026-02-10
+
+### Added
+- **TypeScript SDK** (`oss/sdk-ts/`): `@get-continuum/sdk` with full type definitions and HTTP client matching Python SDK surface area
+- **Capability registry** (`oss/capabilities/`): a-la-carte module system with `continuum.yaml` config loader and adapter interfaces (ModelAdapter, OrchestratorAdapter, MemorySignalSource)
+- **Demo UI polish**: Decision Artifact panel (typed contract view with version, scope, options, rationale), color-coded enforcement verdicts, clickable inspector items
+- **Hosted backend MVP**: `POST /commit_simple` endpoint, auth middleware with API key + workspace tenancy, SQLite DB schema (workspaces, api_keys, decisions tables)
+- **SDK docs**: Python and TypeScript reference pages (`docs/sdks/`)
+- **CI boundary check**: `scripts/check-boundary.sh` verifies oss/ never imports from continuum_engine
+- **v2 repo streamline**: Froze v1 in both repos (branch + tag), pushed v2 monorepo to `get-continuum/continuum` main
+
+### Changed
+- Demo UI: Updated metadata, title, and header from boilerplate to branded Continuum
+- Demo API: Bumped to v0.2.0, added auth + DB modules
+- Docs navigation: Added SDKs section (Python + TypeScript)
+
 ## [Unreleased]
 
 ### Added

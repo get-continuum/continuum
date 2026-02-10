@@ -1,0 +1,147 @@
+---
+title: Python SDK
+description: Reference for the continuum-sdk Python package
+---
+
+## Installation
+
+```bash
+pip install continuum-sdk
+```
+
+## ContinuumClient
+
+The main entry point. Creates, stores, and queries decisions using the local file-backed store.
+
+```python
+from continuum import ContinuumClient
+
+client = ContinuumClient(
+    storage_dir=".continuum",    # default: .continuum/
+    memory_source=None,           # optional MemorySignalSource
+)
+```
+
+### Methods
+
+#### `commit(title, scope, decision_type, ...)`
+
+Create and persist a new decision. Returns a `Decision` object.
+
+```python
+decision = client.commit(
+    title="Revenue means net_revenue",
+    scope="org:acme",
+    decision_type="interpretation",
+    rationale="Finance confirmed net_revenue is standard.",
+    options=[
+        {"title": "net_revenue", "selected": True},
+        {"title": "gross_revenue", "selected": False, "rejected_reason": "Includes returns"},
+    ],
+    stakeholders=["finance-team"],
+    metadata={"source": "slack-thread-123"},
+    override_policy="invalid_by_default",
+    precedence=10,
+)
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `title` | `str` | Yes | Human-readable title |
+| `scope` | `str` | Yes | Where decision applies (e.g. `repo:acme/backend`) |
+| `decision_type` | `str` | Yes | `interpretation`, `rejection`, `preference`, `behavior_rule` |
+| `rationale` | `str` | No | Why the decision was made |
+| `options` | `list[dict]` | No | Options considered |
+| `stakeholders` | `list[str]` | No | People/teams involved |
+| `metadata` | `dict` | No | Arbitrary key-value pairs |
+| `override_policy` | `str` | No | `invalid_by_default`, `warn`, `allow` |
+| `precedence` | `int` | No | Priority (higher wins) |
+| `supersedes` | `str` | No | ID of decision this replaces |
+
+#### `get(decision_id)`
+
+Load a single decision by ID. Raises `DecisionNotFoundError` if missing.
+
+```python
+decision = client.get("dec_abc123def456")
+```
+
+#### `inspect(scope)`
+
+Return all active decisions for a scope (the "binding set").
+
+```python
+bindings = client.inspect("org:acme")
+for d in bindings:
+    print(d["title"], d["id"])
+```
+
+#### `resolve(query, scope, candidates=None)`
+
+Run the ambiguity gate. Returns `{"status": "resolved", ...}` or `{"status": "needs_clarification", ...}`.
+
+```python
+result = client.resolve(
+    query="What is revenue?",
+    scope="org:acme",
+    candidates=[{"id": "opt_1", "title": "net_revenue"}],
+)
+```
+
+#### `enforce(action, scope)`
+
+Evaluate an action against active decisions. Returns enforcement result with verdict.
+
+```python
+result = client.enforce(
+    action={"type": "code_change", "description": "Switch to gross_revenue"},
+    scope="org:acme",
+)
+print(result["verdict"])  # "allow" | "block" | "confirm" | "override"
+```
+
+#### `supersede(old_id, new_title, **kwargs)`
+
+Replace an existing decision. Archives the old one and creates a new active decision.
+
+```python
+new_dec = client.supersede(
+    old_id="dec_abc123def456",
+    new_title="Revenue means gross_revenue",
+    rationale="Board changed policy.",
+)
+```
+
+## Models
+
+### Decision
+
+```python
+from continuum.models import Decision, DecisionStatus, DecisionType
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `str` | Unique ID (`dec_...`) |
+| `version` | `int` | Version number |
+| `status` | `DecisionStatus` | `draft`, `active`, `superseded`, `archived` |
+| `title` | `str` | Human-readable title |
+| `rationale` | `str \| None` | Why the decision was made |
+| `enforcement` | `Enforcement \| None` | Scope, type, override policy |
+| `options_considered` | `list[Option]` | Options that were evaluated |
+| `created_at` | `datetime` | When created |
+| `updated_at` | `datetime` | Last update |
+
+## Memory Integration
+
+Enrich resolution candidates with signals from external memory stores:
+
+```python
+from continuum import ContinuumClient, SQLiteMemorySource
+
+memory = SQLiteMemorySource(db_path=".continuum/memory.db")
+client = ContinuumClient(memory_source=memory)
+
+# resolve() now enriches candidates from memory
+result = client.resolve("What is revenue?", scope="org:acme")
+```

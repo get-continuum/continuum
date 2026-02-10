@@ -1,0 +1,154 @@
+---
+title: TypeScript SDK
+description: Reference for the @get-continuum/sdk TypeScript package
+---
+
+## Installation
+
+```bash
+npm install @get-continuum/sdk
+```
+
+## ContinuumClient
+
+HTTP client for the Continuum API. Works with both the local demo API and the hosted backend.
+
+```typescript
+import { ContinuumClient } from "@get-continuum/sdk";
+
+const client = new ContinuumClient({
+  baseUrl: "http://localhost:8000",  // or hosted API URL
+  apiKey: "ck_...",                  // optional API key
+  timeout: 30_000,                   // request timeout in ms
+});
+```
+
+### Methods
+
+#### `commit(params)`
+
+Create and persist a new decision.
+
+```typescript
+const decision = await client.commit({
+  title: "Revenue means net_revenue",
+  scope: "org:acme",
+  decision_type: "interpretation",
+  rationale: "Finance team confirmed net_revenue is standard.",
+  options: [
+    { title: "net_revenue", selected: true },
+    { title: "gross_revenue", selected: false, rejected_reason: "Includes returns" },
+  ],
+});
+```
+
+#### `get(decisionId)`
+
+Get a single decision by ID.
+
+```typescript
+const decision = await client.get("dec_abc123def456");
+```
+
+#### `inspect(scope)`
+
+List active decisions for a scope (the "binding set").
+
+```typescript
+const bindings = await client.inspect("org:acme");
+bindings.forEach((d) => console.log(d.title, d.id));
+```
+
+#### `resolve(params)`
+
+Run the ambiguity gate.
+
+```typescript
+const result = await client.resolve({
+  query: "What is revenue?",
+  scope: "org:acme",
+  candidates: [{ id: "opt_1", title: "net_revenue" }],
+});
+
+if (result.status === "resolved") {
+  console.log("Matched:", result.matched_decision_id);
+} else {
+  console.log("Needs clarification:", result.clarification?.question);
+}
+```
+
+#### `enforce(params)`
+
+Evaluate an action against active decisions.
+
+```typescript
+const result = await client.enforce({
+  action: {
+    type: "code_change",
+    description: "Switch to gross_revenue",
+    scope: "org:acme",
+  },
+  scope: "org:acme",
+});
+
+console.log(result.verdict); // "allow" | "block" | "confirm" | "override"
+```
+
+#### `supersede(params)`
+
+Replace an existing decision.
+
+```typescript
+const newDec = await client.supersede({
+  old_id: "dec_abc123def456",
+  new_title: "Revenue means gross_revenue",
+  rationale: "Board changed policy.",
+});
+```
+
+#### `health()`
+
+Health check.
+
+```typescript
+const { ok, store_dir } = await client.health();
+```
+
+## Types
+
+All types are exported and can be used in your application:
+
+```typescript
+import type {
+  Decision,
+  DecisionType,
+  DecisionStatus,
+  ResolveResult,
+  EnforcementResult,
+  CommitParams,
+} from "@get-continuum/sdk";
+```
+
+### Decision Types
+
+| Type | Values |
+|---|---|
+| `DecisionStatus` | `"draft"`, `"active"`, `"superseded"`, `"archived"` |
+| `DecisionType` | `"interpretation"`, `"rejection"`, `"preference"`, `"behavior_rule"` |
+| `OverridePolicy` | `"invalid_by_default"`, `"warn"`, `"allow"` |
+| `ActionType` | `"code_change"`, `"migration"`, `"api_break"`, `"deployment"`, `"config_change"`, `"generic"` |
+| `EnforcementVerdict` | `"allow"`, `"block"`, `"confirm"`, `"override"` |
+
+## Error Handling
+
+```typescript
+import { ContinuumApiError } from "@get-continuum/sdk";
+
+try {
+  await client.get("dec_nonexistent");
+} catch (err) {
+  if (err instanceof ContinuumApiError) {
+    console.error(`API error ${err.status}: ${err.body}`);
+  }
+}
+```
