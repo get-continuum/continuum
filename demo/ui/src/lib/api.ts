@@ -67,11 +67,10 @@ export type DecisionRecord = {
     decision_type?: string;
     supersedes?: string;
     override_policy?: string;
-    [k: string]: unknown;
   };
+  metadata?: Record<string, unknown>;
   created_at?: string;
   updated_at?: string;
-  [k: string]: unknown;
 };
 
 export type ResolveResult =
@@ -93,7 +92,6 @@ export type EnforcementResult = {
   reason: string;
   matched_decisions?: string[];
   required_confirmations?: string[];
-  [k: string]: unknown;
 };
 
 export type ApiKey = {
