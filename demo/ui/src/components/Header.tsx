@@ -25,7 +25,7 @@ export default function Header() {
   };
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-950">
+    <header className="flex h-14 items-center justify-between border-b border-white/[0.06] bg-[#0a0a0f] px-4">
       {/* Left: Logo + Title */}
       <div className="flex items-center gap-2.5">
         <Image
@@ -35,24 +35,24 @@ export default function Header() {
           height={28}
           className="rounded"
         />
-        <span className="text-sm font-semibold tracking-tight">
+        <span className="text-sm font-semibold tracking-tight text-white">
           Continuum Console
         </span>
       </div>
 
       {/* Center: Workspace + Mode */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 rounded-md border border-zinc-200 px-2.5 py-1 text-xs dark:border-zinc-800">
-          <span className="text-zinc-500 dark:text-zinc-400">Workspace</span>
-          <span className="font-medium">{workspace?.name ?? "default"}</span>
+        <div className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs">
+          <span className="text-zinc-500">Workspace</span>
+          <span className="font-medium text-zinc-200">{workspace?.name ?? "default"}</span>
         </div>
-        <div className="flex items-center gap-1.5 rounded-md border border-zinc-200 px-2.5 py-1 text-xs dark:border-zinc-800">
+        <div className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs">
           <span
             className={`inline-block h-2 w-2 rounded-full ${
-              mode === "Hosted" ? "bg-emerald-500" : "bg-zinc-400"
+              mode === "Hosted" ? "bg-emerald-500" : "bg-zinc-500"
             }`}
           />
-          <span className="font-medium">{mode}</span>
+          <span className="font-medium text-zinc-200">{mode}</span>
         </div>
       </div>
 
@@ -61,23 +61,23 @@ export default function Header() {
         {authEnabled && (
           <button
             onClick={copyApiKey}
-            className="rounded-md border border-zinc-200 px-2.5 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+            className="rounded-md border border-white/10 px-2.5 py-1 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5"
           >
             Copy API Key
           </button>
         )}
         <a
-          href="https://docs.getcontinuum.ai"
+          href="https://continuum-4f565acd.mintlify.app/"
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-md border border-zinc-200 px-2.5 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+          className="rounded-md border border-white/10 px-2.5 py-1 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5"
         >
           Docs
         </a>
         {authEnabled && (
           <button
             onClick={logout}
-            className="rounded-md border border-zinc-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-zinc-800 dark:text-red-400 dark:hover:bg-red-950"
+            className="rounded-md border border-white/10 px-2.5 py-1 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/10"
           >
             Logout
           </button>

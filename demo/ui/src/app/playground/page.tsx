@@ -21,18 +21,18 @@ const DECISION_TYPES = [
   "constraint",
 ];
 
+const inputClasses =
+  "mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-teal-500/40 focus:ring-2 focus:ring-teal-500/20";
+
 export default function PlaygroundPage() {
-  // -- Scope state --
   const [scopes, setScopes] = useState(["repo:continuum-demo"]);
   const primaryScope = scopes[0] || "";
 
-  // -- Commit form state --
   const [title, setTitle] = useState("");
   const [formScope, setFormScope] = useState(primaryScope);
   const [decisionType, setDecisionType] = useState("interpretation");
   const [rationale, setRationale] = useState("");
 
-  // -- Resolve / enforce state --
   const [resolvePrompt, setResolvePrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [binding, setBinding] = useState<DecisionRecord[]>([]);
@@ -41,7 +41,6 @@ export default function PlaygroundPage() {
   const [selectedDecision, setSelectedDecision] = useState<DecisionRecord | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  // Keep form scope in sync when primary scope changes
   useEffect(() => {
     setFormScope(primaryScope);
   }, [primaryScope]);
@@ -51,16 +50,13 @@ export default function PlaygroundPage() {
     try {
       const data = await fetchInspect(primaryScope);
       setBinding(data.binding ?? []);
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   }, [primaryScope]);
 
   useEffect(() => {
     void refreshInspector();
   }, [refreshInspector]);
 
-  // -- Commit --
   const handleCommit = async () => {
     if (!title.trim() || !formScope.trim()) return;
     setLoading(true);
@@ -84,7 +80,6 @@ export default function PlaygroundPage() {
     }
   };
 
-  // -- Resolve --
   const handleResolve = async () => {
     const p = resolvePrompt.trim();
     if (!p) return;
@@ -96,9 +91,7 @@ export default function PlaygroundPage() {
       setLastResolution(data.resolution);
       if (data.resolution.status === "resolved") {
         setStatusMessage(
-          `Resolved by prior decision: ${
-            (data.resolution as { matched_decision_id?: string }).matched_decision_id ?? "unknown"
-          }`
+          `Resolved by prior decision: ${(data.resolution as { matched_decision_id?: string }).matched_decision_id ?? "unknown"}`
         );
       } else {
         setStatusMessage("Ambiguity Gate: needs clarification.");
@@ -111,7 +104,6 @@ export default function PlaygroundPage() {
     }
   };
 
-  // -- Enforce --
   const handleEnforce = async () => {
     const p = resolvePrompt.trim();
     setLoading(true);
@@ -122,9 +114,7 @@ export default function PlaygroundPage() {
         description: p || "Generic action to enforce",
       });
       setLastEnforcement(data.enforcement);
-      setStatusMessage(
-        `Enforcement verdict: ${data.enforcement.verdict} (${data.enforcement.reason})`
-      );
+      setStatusMessage(`Enforcement verdict: ${data.enforcement.verdict} (${data.enforcement.reason})`);
     } catch (e: unknown) {
       setStatusMessage(`Error: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -133,12 +123,7 @@ export default function PlaygroundPage() {
     }
   };
 
-  // -- Commit from ambiguity card --
-  const promoteInterpretation = async (
-    selectedId: string,
-    selectedTitle: string,
-    scope: string
-  ) => {
+  const promoteInterpretation = async (selectedId: string, selectedTitle: string, scope: string) => {
     setLoading(true);
     setStatusMessage(null);
     try {
@@ -160,7 +145,6 @@ export default function PlaygroundPage() {
     }
   };
 
-  // -- Supersede from inspector --
   const handleSupersede = (decision: DecisionRecord) => {
     const enforcement = decision.enforcement;
     setTitle(`${decision.title} (v2)`);
@@ -169,11 +153,9 @@ export default function PlaygroundPage() {
     setRationale(`Supersedes: ${decision.id} — ${decision.title}`);
     setSelectedDecision(null);
     setStatusMessage(`Pre-filled form to supersede "${decision.title}". Edit and commit.`);
-    // Scroll to top
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // -- Archive from inspector --
   const handleArchive = async (decision: DecisionRecord) => {
     setLoading(true);
     setStatusMessage(null);
@@ -191,118 +173,67 @@ export default function PlaygroundPage() {
 
   return (
     <div className="flex h-full">
-      {/* Main content */}
-      <div className="flex-1 overflow-auto p-6">
-        <h1 className="text-lg font-semibold">Playground</h1>
+      <div className="animate-fadeIn flex-1 overflow-auto p-6">
+        <h1 className="text-lg font-semibold text-white">Playground</h1>
 
-        {/* Scope pills */}
         <div className="mt-4">
           <ScopePills scopes={scopes} onChange={setScopes} />
         </div>
 
-        {/* ---- Commit Form ---- */}
-        <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+        {/* Commit Form */}
+        <div className="mt-6 rounded-xl border border-white/[0.08] bg-[#111115] p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-zinc-200">
             Commit a Decision
           </h2>
-
           <div className="mt-3 grid grid-cols-2 gap-3">
-            {/* Title */}
             <div className="col-span-2">
               <label className="text-xs font-medium text-zinc-500">Title</label>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Use bullet-point responses"
-                className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-500/30 dark:border-zinc-800 dark:bg-zinc-950"
-              />
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Use bullet-point responses" className={inputClasses} />
             </div>
-
-            {/* Scope */}
             <div>
               <label className="text-xs font-medium text-zinc-500">Scope</label>
-              <input
-                value={formScope}
-                onChange={(e) => setFormScope(e.target.value)}
-                placeholder="e.g. repo:my-app"
-                className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-500/30 dark:border-zinc-800 dark:bg-zinc-950"
-              />
+              <input value={formScope} onChange={(e) => setFormScope(e.target.value)} placeholder="e.g. repo:my-app" className={inputClasses} />
             </div>
-
-            {/* Decision type */}
             <div>
               <label className="text-xs font-medium text-zinc-500">Type</label>
-              <select
-                value={decisionType}
-                onChange={(e) => setDecisionType(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-500/30 dark:border-zinc-800 dark:bg-zinc-950"
-              >
-                {DECISION_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
+              <select value={decisionType} onChange={(e) => setDecisionType(e.target.value)} className={inputClasses}>
+                {DECISION_TYPES.map((t) => (<option key={t} value={t}>{t}</option>))}
               </select>
             </div>
-
-            {/* Rationale */}
             <div className="col-span-2">
               <label className="text-xs font-medium text-zinc-500">
-                Rationale <span className="text-zinc-400">(optional)</span>
+                Rationale <span className="text-zinc-600">(optional)</span>
               </label>
-              <textarea
-                value={rationale}
-                onChange={(e) => setRationale(e.target.value)}
-                rows={2}
-                placeholder="Why was this decided?"
-                className="mt-1 w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-500/30 dark:border-zinc-800 dark:bg-zinc-950"
-              />
+              <textarea value={rationale} onChange={(e) => setRationale(e.target.value)} rows={2} placeholder="Why was this decided?" className={inputClasses + " resize-none"} />
             </div>
           </div>
-
-          <button
-            onClick={handleCommit}
-            disabled={loading || !title.trim()}
-            className="mt-3 rounded-lg bg-teal-600 px-5 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
-          >
+          <button onClick={handleCommit} disabled={loading || !title.trim()} className="mt-3 rounded-lg bg-teal-600 px-5 py-2 text-sm font-medium text-white transition-all hover:bg-teal-500 hover:shadow-lg hover:shadow-teal-600/20 disabled:opacity-50">
             Commit Decision
           </button>
         </div>
 
-        {/* ---- Resolve / Enforce Section ---- */}
-        <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+        {/* Resolve / Enforce */}
+        <div className="mt-6 rounded-xl border border-white/[0.08] bg-[#111115] p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-zinc-200">
             Resolve &amp; Enforce
           </h2>
-          <p className="mt-1 text-xs text-zinc-400">
+          <p className="mt-1 text-xs text-zinc-500">
             Test how your decisions respond to queries and actions.
           </p>
-
           <div className="mt-3">
             <input
               value={resolvePrompt}
               onChange={(e) => setResolvePrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) void handleResolve();
-              }}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) void handleResolve(); }}
               placeholder="Ask anything... e.g. Make it production-ready"
-              className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm shadow-sm outline-none focus:ring-2 focus:ring-teal-500/30 dark:border-zinc-800 dark:bg-zinc-950"
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-teal-500/40 focus:ring-2 focus:ring-teal-500/20"
             />
           </div>
-
           <div className="mt-3 flex gap-2">
-            <button
-              onClick={handleResolve}
-              disabled={loading || !resolvePrompt.trim()}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
+            <button onClick={handleResolve} disabled={loading || !resolvePrompt.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50">
               Resolve
             </button>
-            <button
-              onClick={handleEnforce}
-              disabled={loading}
-              className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-            >
+            <button onClick={handleEnforce} disabled={loading} className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50">
               Enforce
             </button>
           </div>
@@ -310,7 +241,7 @@ export default function PlaygroundPage() {
 
         {/* Status */}
         {statusMessage && (
-          <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+          <div className="mt-4 rounded-lg border border-white/[0.06] bg-white/[0.03] p-3 text-sm text-zinc-300">
             {statusMessage}
           </div>
         )}
@@ -318,13 +249,7 @@ export default function PlaygroundPage() {
         {/* Ambiguity card */}
         {lastResolution && lastResolution.status === "needs_clarification" && (
           <div className="mt-4">
-            <AmbiguityCard
-              result={lastResolution}
-              prompt={resolvePrompt}
-              loading={loading}
-              onCommit={promoteInterpretation}
-              scopes={scopes}
-            />
+            <AmbiguityCard result={lastResolution} prompt={resolvePrompt} loading={loading} onCommit={promoteInterpretation} scopes={scopes} />
           </div>
         )}
 
@@ -334,29 +259,27 @@ export default function PlaygroundPage() {
             className={[
               "mt-4 rounded-xl border p-4 text-sm",
               lastEnforcement.verdict === "block"
-                ? "border-red-200 bg-red-50 dark:border-red-900/40 dark:bg-red-950/30"
+                ? "border-red-500/20 bg-red-500/5"
                 : lastEnforcement.verdict === "confirm"
-                ? "border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/30"
-                : "border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/30",
+                ? "border-amber-500/20 bg-amber-500/5"
+                : "border-emerald-500/20 bg-emerald-500/5",
             ].join(" ")}
           >
-            <div className="text-xs font-semibold">Enforcement Result</div>
+            <div className="text-xs font-semibold text-zinc-300">Enforcement Result</div>
             <div className="mt-1 flex items-center gap-2">
               <span
                 className={[
                   "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
                   lastEnforcement.verdict === "block"
-                    ? "bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-300"
+                    ? "bg-red-500/15 text-red-400"
                     : lastEnforcement.verdict === "confirm"
-                    ? "bg-amber-200 text-amber-900 dark:bg-amber-900/50 dark:text-amber-300"
-                    : "bg-emerald-200 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-300",
+                    ? "bg-amber-500/15 text-amber-400"
+                    : "bg-emerald-500/15 text-emerald-400",
                 ].join(" ")}
               >
                 {lastEnforcement.verdict}
               </span>
-              <span className="text-xs text-zinc-600 dark:text-zinc-400">
-                {lastEnforcement.reason}
-              </span>
+              <span className="text-xs text-zinc-400">{lastEnforcement.reason}</span>
             </div>
           </div>
         )}
@@ -364,24 +287,12 @@ export default function PlaygroundPage() {
         {/* Decision Artifact */}
         {selectedDecision && (
           <div className="mt-4">
-            <DecisionArtifact
-              decision={selectedDecision}
-              onClose={() => setSelectedDecision(null)}
-              onSupersede={() => handleSupersede(selectedDecision)}
-              onArchive={() => handleArchive(selectedDecision)}
-            />
+            <DecisionArtifact decision={selectedDecision} onClose={() => setSelectedDecision(null)} onSupersede={() => handleSupersede(selectedDecision)} onArchive={() => handleArchive(selectedDecision)} />
           </div>
         )}
       </div>
 
-      {/* Inspector panel */}
-      <InspectorPanel
-        decisions={binding}
-        scopes={scopes}
-        onSelectDecision={setSelectedDecision}
-        onSupersede={handleSupersede}
-        onArchive={handleArchive}
-      />
+      <InspectorPanel decisions={binding} scopes={scopes} onSelectDecision={setSelectedDecision} onSupersede={handleSupersede} onArchive={handleArchive} />
     </div>
   );
 }

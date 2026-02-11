@@ -29,12 +29,12 @@ export default function ScopePills({ scopes, onChange }: Props) {
       {scopes.map((s) => (
         <span
           key={s}
-          className="flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:border-zinc-700 dark:bg-zinc-800"
+          className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-zinc-300"
         >
           <code>{s}</code>
           <button
             onClick={() => remove(s)}
-            className="ml-0.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
+            className="ml-0.5 text-zinc-500 transition-colors hover:text-zinc-200"
           >
             &times;
           </button>
@@ -51,12 +51,12 @@ export default function ScopePills({ scopes, onChange }: Props) {
           }}
           onBlur={add}
           placeholder="scope:value"
-          className="rounded-full border border-zinc-300 px-2.5 py-1 text-xs outline-none focus:ring-2 focus:ring-teal-500/30 dark:border-zinc-700 dark:bg-zinc-900"
+          className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white placeholder-zinc-500 outline-none focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/20"
         />
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="rounded-full border border-dashed border-zinc-300 px-2.5 py-1 text-xs text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:hover:border-zinc-600"
+          className="rounded-full border border-dashed border-white/10 px-2.5 py-1 text-xs text-zinc-500 transition-colors hover:border-white/20 hover:text-zinc-300"
         >
           + Add scope
         </button>
