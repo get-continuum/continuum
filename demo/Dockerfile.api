@@ -11,9 +11,13 @@ RUN apt-get update && \
 COPY oss/sdk/python /build/sdk
 RUN pip install --no-cache-dir /build/sdk
 
-# Install demo API from local source (with hosted extras for Postgres + auth)
-COPY demo/api /build/api
-RUN pip install --no-cache-dir "/build/api[hosted]"
+# Install API runtime dependencies directly
+RUN pip install --no-cache-dir \
+    fastapi \
+    "uvicorn[standard]" \
+    "psycopg[binary]>=3.1" \
+    "bcrypt>=4.0" \
+    "PyJWT>=2.8"
 
 # Copy API entrypoint and supporting modules
 COPY demo/api/main.py /app/main.py
