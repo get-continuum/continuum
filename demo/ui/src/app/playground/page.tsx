@@ -108,6 +108,7 @@ export default function PlaygroundPage() {
     scope: string
   ) => {
     setLoading(true);
+    setStatusMessage(null);
     try {
       await fetchCommit({
         title: "production-ready",
@@ -120,6 +121,8 @@ export default function PlaygroundPage() {
       setLastResolution(null);
       setStatusMessage(`Promoted to decision: production-ready -> ${selectedTitle}`);
       await refreshInspector();
+    } catch (e: unknown) {
+      setStatusMessage(`Commit failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setLoading(false);
     }

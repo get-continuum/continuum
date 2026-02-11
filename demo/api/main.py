@@ -27,7 +27,7 @@ from storage.local import FileStorageBackend
 # Backend factory
 # ---------------------------------------------------------------------------
 
-_backend_instance: Optional[StorageBackend] = None
+_local_backend_instance: Optional[StorageBackend] = None
 
 
 def _default_store_dir() -> str:
@@ -38,12 +38,15 @@ def _default_store_dir() -> str:
     return str(repo_root / ".continuum")
 
 
-def _get_backend() -> StorageBackend:
-    """Return the configured storage backend (singleton)."""
-    global _backend_instance  # noqa: PLW0603
-    if _backend_instance is not None:
-        return _backend_instance
+def get_backend(
+    ws: WorkspaceContext = Depends(require_workspace),
+) -> StorageBackend:
+    """FastAPI dependency — returns a workspace-scoped storage backend.
 
+    In hosted mode a fresh ``PostgresStorageBackend`` is created per request so
+    that it uses the authenticated user's ``workspace_id``.  In local mode the
+    file-backed singleton is reused (workspace is ignored).
+    """
     mode = os.environ.get("CONTINUUM_MODE", "local")
     if mode == "hosted":
         from storage.postgres import PostgresStorageBackend
@@ -51,15 +54,15 @@ def _get_backend() -> StorageBackend:
         database_url = os.environ.get("DATABASE_URL", "")
         if not database_url:
             raise RuntimeError("DATABASE_URL must be set when CONTINUUM_MODE=hosted")
-        _backend_instance = PostgresStorageBackend(database_url=database_url)
-    else:
-        _backend_instance = FileStorageBackend(storage_dir=_default_store_dir())
-    return _backend_instance
+        return PostgresStorageBackend(
+            database_url=database_url,
+            workspace_id=ws.workspace_id,
+        )
 
-
-def get_backend() -> StorageBackend:
-    """FastAPI dependency that provides the storage backend."""
-    return _get_backend()
+    global _local_backend_instance  # noqa: PLW0603
+    if _local_backend_instance is None:
+        _local_backend_instance = FileStorageBackend(storage_dir=_default_store_dir())
+    return _local_backend_instance
 
 
 # ---------------------------------------------------------------------------
