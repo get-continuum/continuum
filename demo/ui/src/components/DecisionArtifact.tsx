@@ -5,9 +5,16 @@ import type { DecisionRecord } from "@/lib/api";
 type Props = {
   decision: DecisionRecord;
   onClose?: () => void;
+  onSupersede?: () => void;
+  onArchive?: () => void;
 };
 
-export default function DecisionArtifact({ decision, onClose }: Props) {
+export default function DecisionArtifact({
+  decision,
+  onClose,
+  onSupersede,
+  onArchive,
+}: Props) {
   const enforcement = decision.enforcement;
 
   return (
@@ -129,6 +136,28 @@ export default function DecisionArtifact({ decision, onClose }: Props) {
               {" "}
               | Updated: {new Date(decision.updated_at).toLocaleString()}
             </>
+          )}
+        </div>
+      )}
+
+      {/* Action buttons */}
+      {(onSupersede || onArchive) && (
+        <div className="mt-4 flex gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+          {onSupersede && decision.status === "active" && (
+            <button
+              onClick={onSupersede}
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+            >
+              Supersede
+            </button>
+          )}
+          {onArchive && decision.status === "active" && (
+            <button
+              onClick={onArchive}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            >
+              Archive
+            </button>
           )}
         </div>
       )}

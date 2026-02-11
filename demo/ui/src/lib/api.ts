@@ -39,6 +39,16 @@ export async function getJson<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+export async function patchJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${apiBase()}${path}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as T;
+}
+
 export async function deleteJson<T>(path: string): Promise<T> {
   const res = await fetch(`${apiBase()}${path}`, {
     method: "DELETE",
@@ -150,4 +160,16 @@ export function createApiKey(name: string) {
 
 export function revokeApiKey(keyId: string) {
   return deleteJson<{ deleted: boolean }>(`/api-keys/${keyId}`);
+}
+
+export function fetchDecisions(scope?: string) {
+  const qs = scope ? `?scope=${encodeURIComponent(scope)}` : "";
+  return getJson<{ decisions: DecisionRecord[] }>(`/decisions${qs}`);
+}
+
+export function patchDecisionStatus(decisionId: string, status: string) {
+  return patchJson<{ decision: DecisionRecord }>(
+    `/decision/${decisionId}/status`,
+    { status }
+  );
 }

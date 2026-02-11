@@ -129,6 +129,10 @@ class SupersedeRequest(BaseModel):
     precedence: Optional[int] = None
 
 
+class UpdateStatusRequest(BaseModel):
+    status: str
+
+
 # -- Auth request models ---------------------------------------------------
 
 
@@ -265,6 +269,33 @@ def supersede(
             override_policy=req.override_policy,
             precedence=req.precedence,
         )
+        return {"decision": dec}
+    except ContinuumError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/decisions")
+def list_decisions(
+    scope: Optional[str] = None,
+    backend: StorageBackend = Depends(get_backend),
+) -> dict[str, Any]:
+    """Return all decisions, optionally filtered by scope."""
+    try:
+        decs = backend.list_decisions(scope=scope if scope else None)
+        return {"decisions": decs}
+    except ContinuumError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.patch("/decision/{decision_id}/status")
+def update_decision_status(
+    decision_id: str,
+    req: UpdateStatusRequest,
+    backend: StorageBackend = Depends(get_backend),
+) -> dict[str, Any]:
+    """Update the status of a decision (active, draft, archived)."""
+    try:
+        dec = backend.update_status(decision_id, req.status)
         return {"decision": dec}
     except ContinuumError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
