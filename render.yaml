@@ -1,0 +1,20 @@
+# Render Blueprint – Continuum hosted API
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: continuum-api
+    runtime: docker
+    dockerfilePath: demo/Dockerfile.api
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: CONTINUUM_MODE
+        value: hosted
+      - key: CONTINUUM_AUTH_ENABLED
+        value: "true"
+      - key: DATABASE_URL
+        sync: false  # Set manually to your Neon connection string
+      - key: JWT_SECRET
+        generateValue: true

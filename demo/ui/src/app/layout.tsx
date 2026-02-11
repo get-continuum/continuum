@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/components/AuthProvider";
+import AppShell from "./AppShell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,8 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Continuum Demo",
-  description: "Decision Control Plane for AI Agents — Ambiguity Gate + Decision Inspector",
+  title: "Continuum Console",
+  description:
+    "Decision Control Plane for AI Agents — Ambiguity Gate + Decision Inspector",
 };
 
 export default function RootLayout({
@@ -27,7 +30,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <AuthProvider>
+          <AppShell>{children}</AppShell>
+        </AuthProvider>
       </body>
     </html>
   );

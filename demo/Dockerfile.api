@@ -6,13 +6,17 @@ WORKDIR /app
 COPY oss/sdk/python /build/sdk
 RUN pip install --no-cache-dir /build/sdk
 
-# Install demo API from local source
+# Install demo API from local source (with hosted extras for Postgres + auth)
 COPY demo/api /build/api
-RUN pip install --no-cache-dir /build/api
+RUN pip install --no-cache-dir "/build/api[hosted]"
 
-# Copy API entrypoint
+# Copy API entrypoint and supporting modules
 COPY demo/api/main.py /app/main.py
+COPY demo/api/auth /app/auth
+COPY demo/api/storage /app/storage
+COPY demo/api/db /app/db
 
+ENV CONTINUUM_MODE=local
 ENV CONTINUUM_STORE=/data/.continuum
 
 EXPOSE 8000
