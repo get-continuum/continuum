@@ -34,6 +34,7 @@ class FileStorageBackend:
         override_policy: Optional[str] = None,
         precedence: Optional[int] = None,
         supersedes: Optional[str] = None,
+        key: Optional[str] = None,
     ) -> dict[str, Any]:
         dec = self._client.commit(
             title=title,
@@ -46,6 +47,7 @@ class FileStorageBackend:
             override_policy=override_policy,
             precedence=precedence,
             supersedes=supersedes,
+            key=key,
         )
         return dec.model_dump(mode="json")
 
@@ -62,7 +64,7 @@ class FileStorageBackend:
             mode="json"
         )
 
-    def inspect(self, scope: str) -> list[dict[str, Any]]:
+    def inspect(self, scope: str) -> dict[str, Any]:
         return self._client.inspect(scope)
 
     def enforce(self, action: dict[str, Any], scope: str) -> dict[str, Any]:
@@ -86,6 +88,7 @@ class FileStorageBackend:
         metadata: Optional[dict[str, Any]] = None,
         override_policy: Optional[str] = None,
         precedence: Optional[int] = None,
+        key: Optional[str] = None,
     ) -> dict[str, Any]:
         dec = self._client.supersede(
             old_id=old_id,
@@ -96,5 +99,6 @@ class FileStorageBackend:
             metadata=metadata,
             override_policy=override_policy,
             precedence=precedence,
+            key=key,
         )
         return dec.model_dump(mode="json")

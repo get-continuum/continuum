@@ -25,6 +25,7 @@ class StorageBackend(Protocol):
         override_policy: Optional[str] = None,
         precedence: Optional[int] = None,
         supersedes: Optional[str] = None,
+        key: Optional[str] = None,
     ) -> dict[str, Any]:
         """Create and persist a new decision.  Returns the decision as a dict."""
         ...
@@ -41,8 +42,12 @@ class StorageBackend(Protocol):
         """Transition a decision to a new lifecycle status."""
         ...
 
-    def inspect(self, scope: str) -> list[dict[str, Any]]:
-        """Return the active binding set for *scope*."""
+    def inspect(self, scope: str) -> dict[str, Any]:
+        """Return the effective binding set for *scope*.
+
+        Returns a dict with ``bindings``, ``conflict_notes``, and ``items``
+        (legacy flat list equal to ``bindings``).
+        """
         ...
 
     def enforce(self, action: dict[str, Any], scope: str) -> dict[str, Any]:
@@ -68,6 +73,7 @@ class StorageBackend(Protocol):
         metadata: Optional[dict[str, Any]] = None,
         override_policy: Optional[str] = None,
         precedence: Optional[int] = None,
+        key: Optional[str] = None,
     ) -> dict[str, Any]:
         """Supersede an existing decision and commit a replacement."""
         ...

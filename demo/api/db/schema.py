@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS decisions (
     title           TEXT NOT NULL,
     rationale       TEXT,
     scope           TEXT,
+    key             TEXT,
+    binding_key     TEXT NOT NULL DEFAULT '',
+    value_hash      TEXT NOT NULL DEFAULT '',
     decision_type   TEXT,
     supersedes      TEXT,
     precedence      INTEGER,
@@ -54,6 +57,10 @@ CREATE INDEX IF NOT EXISTS idx_decisions_scope
 
 CREATE INDEX IF NOT EXISTS idx_decisions_status
     ON decisions(workspace_id, status);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_active_binding
+    ON decisions(workspace_id, scope, binding_key)
+    WHERE status = 'active';
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash
     ON api_keys(key_hash);

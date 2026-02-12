@@ -118,6 +118,7 @@ class CommitRequest(BaseModel):
     supersedes: Optional[str] = None
     activate: bool = False
     evidence: Optional[list[EvidenceInput]] = None
+    key: Optional[str] = None
 
 
 class MineRequest(BaseModel):
@@ -135,6 +136,7 @@ class CommitSimpleRequest(BaseModel):
     scope: str
     decision_type: str = "interpretation"
     rationale: Optional[str] = None
+    key: Optional[str] = None
 
 
 class SupersedeRequest(BaseModel):
@@ -271,6 +273,7 @@ def commit_simple(
             scope=req.scope,
             decision_type=req.decision_type,
             rationale=req.rationale,
+            key=req.key,
         )
         dec = backend.update_status(dec["id"], "active")
         return {"decision": dec, "workspace_id": ws.workspace_id}
@@ -284,11 +287,14 @@ def inspect(
     backend: StorageBackend = Depends(get_backend),
 ) -> dict[str, Any]:
     try:
-        binding = backend.inspect(scope)
+        result = backend.inspect(scope)
 
-        # Detect conflicts using precedence engine
-        conflict_notes: list[dict[str, Any]] = []
-        if len(binding) > 1:
+        # result is now {bindings, conflict_notes, items}
+        bindings = result.get("bindings", result if isinstance(result, list) else [])
+        conflict_notes: list[dict[str, Any]] = list(result.get("conflict_notes", []))
+
+        # Optionally augment with precedence engine conflicts
+        if len(bindings) > 1:
             try:
                 import sys as _sys
                 from pathlib import Path as _Path
@@ -300,20 +306,23 @@ def inspect(
                 from continuum_precedence.arbitrate import arbitrate
                 from continuum_precedence.explain import explain_winner
 
-                # Group decisions by title similarity to find conflicts
-                result = arbitrate(binding, scope=scope)
-                if result.conflict_detected:
+                arb_result = arbitrate(bindings, scope=scope)
+                if arb_result.conflict_detected:
                     conflict_notes.append({
                         "type": "precedence_conflict",
-                        "winner_id": result.winner.get("id"),
-                        "loser_ids": [l.get("id") for l in result.losers],
-                        "explanation": explain_winner(result),
-                        "scores": result.scores,
+                        "winner_id": arb_result.winner.get("id"),
+                        "loser_ids": [l.get("id") for l in arb_result.losers],
+                        "explanation": explain_winner(arb_result),
+                        "scores": arb_result.scores,
                     })
             except Exception:
                 pass  # Graceful degradation if precedence module unavailable
 
-        return {"binding": binding, "conflict_notes": conflict_notes}
+        return {
+            "binding": bindings,
+            "conflict_notes": conflict_notes,
+            "items": result.get("items", bindings),
+        }
     except ContinuumError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -404,6 +413,7 @@ def commit(
             override_policy=req.override_policy,
             precedence=req.precedence,
             supersedes=req.supersedes,
+            key=req.key,
         )
         if req.activate:
             dec = backend.update_status(dec["id"], "active")

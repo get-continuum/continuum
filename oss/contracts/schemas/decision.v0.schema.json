@@ -95,6 +95,18 @@
       "type": "string",
       "description": "Where this decision applies (e.g., repo:acme/backend, folder:src/api)."
     },
+    "key": {
+      "type": "string",
+      "description": "User-provided semantic binding key within the scope."
+    },
+    "binding_key": {
+      "type": "string",
+      "description": "Non-null binding key: key if provided, else title. Uniqueness enforced on (scope, binding_key)."
+    },
+    "value_hash": {
+      "type": "string",
+      "description": "Fingerprint of the decision value for idempotency checks."
+    },
     "decision_type": {
       "type": "string",
       "enum": ["interpretation", "rejection", "preference", "behavior_rule"],

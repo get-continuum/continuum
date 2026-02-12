@@ -19,6 +19,12 @@ from typing import Any
 from continuum.client import ContinuumClient
 from continuum.exceptions import ContinuumError
 
+# HttpBackend error (lazy-imported alongside HttpBackend in _backend())
+try:
+    from continuum_mcp.http_backend import HttpBackendError as _HttpBackendError
+except ImportError:
+    _HttpBackendError = Exception  # type: ignore[assignment,misc]
+
 # ---------------------------------------------------------------------------
 # MCP SDK imports — gracefully degrade if not installed
 # ---------------------------------------------------------------------------
@@ -114,7 +120,6 @@ TOOLS: list[dict[str, Any]] = [
                     "description": "Scope to inspect (returns active binding set).",
                 },
             },
-            "anyOf": [{"required": ["decision_id"]}, {"required": ["scope"]}],
         },
     },
     {
@@ -212,6 +217,10 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "Optional decision id this decision supersedes.",
                 },
+                "key": {
+                    "type": "string",
+                    "description": "Optional semantic binding key. One active decision per (scope, key). Falls back to title if omitted.",
+                },
                 "activate": {
                     "type": "boolean",
                     "description": "If true, transition the decision to active immediately.",
@@ -272,9 +281,30 @@ TOOLS: list[dict[str, Any]] = [
 # ---------------------------------------------------------------------------
 
 
-def _client() -> ContinuumClient:
+def _backend() -> Any:
+    """Return the appropriate backend based on environment configuration.
+
+    * ``CONTINUUM_API_URL`` / ``CONTINUUM_BASE_URL`` → :class:`HttpBackend`
+      (hosted mode).
+    * Otherwise → :class:`ContinuumClient` (local file-backed mode).
+    """
+    api_url = os.environ.get("CONTINUUM_API_URL") or os.environ.get(
+        "CONTINUUM_BASE_URL"
+    )
+    if api_url:
+        from continuum_mcp.http_backend import HttpBackend
+
+        api_key = os.environ.get("CONTINUUM_API_KEY", "")
+        return HttpBackend(base_url=api_url, api_key=api_key or None)
     storage_dir = os.environ.get("CONTINUUM_STORE")
     return ContinuumClient(storage_dir=storage_dir) if storage_dir else ContinuumClient()
+
+
+def _to_dict(result: Any) -> Any:
+    """Normalize a result to a plain dict/list (handles Decision models and raw dicts)."""
+    if hasattr(result, "model_dump"):
+        return result.model_dump(mode="json")
+    return result
 
 
 def _ok(payload: Any) -> str:
@@ -288,48 +318,48 @@ def _err(message: str) -> str:
 def _handle_inspect(arguments: dict[str, Any]) -> str:
     """Inspect by decision_id (single record) OR by scope (binding set)."""
     try:
-        client = _client()
+        be = _backend()
         if "decision_id" in arguments and arguments["decision_id"]:
-            dec = client.get(str(arguments["decision_id"]))
-            return _ok(dec.model_dump(mode="json"))
+            dec = be.get(str(arguments["decision_id"]))
+            return _ok(_to_dict(dec))
         if "scope" in arguments and arguments["scope"]:
-            binding = client.inspect(str(arguments["scope"]))
-            return _ok(binding)
+            binding = be.inspect(str(arguments["scope"]))
+            return _ok(_to_dict(binding))
         return _err("Provide either 'decision_id' or 'scope'.")
-    except ContinuumError as exc:
+    except (ContinuumError, _HttpBackendError) as exc:
         return _err(str(exc))
 
 
 def _handle_resolve(arguments: dict[str, Any]) -> str:
     """Resolve a prompt against prior decisions."""
     try:
-        client = _client()
+        be = _backend()
         prompt = str(arguments.get("prompt", ""))
         scope = str(arguments.get("scope", ""))
         candidates = arguments.get("candidates")
-        result = client.resolve(query=prompt, scope=scope, candidates=candidates)
-        return _ok(result)
-    except ContinuumError as exc:
+        result = be.resolve(query=prompt, scope=scope, candidates=candidates)
+        return _ok(_to_dict(result))
+    except (ContinuumError, _HttpBackendError) as exc:
         return _err(str(exc))
 
 
 def _handle_enforce(arguments: dict[str, Any]) -> str:
     """Enforce rules for a proposed action within a scope."""
     try:
-        client = _client()
+        be = _backend()
         scope = str(arguments.get("scope", ""))
         action = arguments.get("action") or {}
-        result = client.enforce(action=action, scope=scope)
-        return _ok(result)
-    except ContinuumError as exc:
+        result = be.enforce(action=action, scope=scope)
+        return _ok(_to_dict(result))
+    except (ContinuumError, _HttpBackendError) as exc:
         return _err(str(exc))
 
 
 def _handle_commit(arguments: dict[str, Any]) -> str:
     """Commit a new decision."""
     try:
-        client = _client()
-        dec = client.commit(
+        be = _backend()
+        dec = be.commit(
             title=str(arguments["title"]),
             scope=str(arguments["scope"]),
             decision_type=str(arguments["decision_type"]),
@@ -340,21 +370,25 @@ def _handle_commit(arguments: dict[str, Any]) -> str:
             override_policy=arguments.get("override_policy"),
             precedence=arguments.get("precedence"),
             supersedes=arguments.get("supersedes"),
+            key=arguments.get("key"),
         )
+        dec_dict = _to_dict(dec)
         if arguments.get("activate"):
-            dec = client.update_status(dec.id, "active")
-        return _ok(dec.model_dump(mode="json"))
+            dec_id = dec_dict["id"] if isinstance(dec_dict, dict) else dec.id
+            dec = be.update_status(dec_id, "active")
+            dec_dict = _to_dict(dec)
+        return _ok(dec_dict)
     except (KeyError, TypeError) as exc:
         return _err(f"Invalid arguments: {exc}")
-    except ContinuumError as exc:
+    except (ContinuumError, _HttpBackendError) as exc:
         return _err(str(exc))
 
 
 def _handle_supersede(arguments: dict[str, Any]) -> str:
     """Supersede an existing decision."""
     try:
-        client = _client()
-        dec = client.supersede(
+        be = _backend()
+        dec = be.supersede(
             old_id=str(arguments["old_id"]),
             new_title=str(arguments["new_title"]),
             rationale=arguments.get("rationale"),
@@ -364,10 +398,10 @@ def _handle_supersede(arguments: dict[str, Any]) -> str:
             override_policy=arguments.get("override_policy"),
             precedence=arguments.get("precedence"),
         )
-        return _ok(dec.model_dump(mode="json"))
+        return _ok(_to_dict(dec))
     except (KeyError, TypeError) as exc:
         return _err(f"Invalid arguments: {exc}")
-    except ContinuumError as exc:
+    except (ContinuumError, _HttpBackendError) as exc:
         return _err(str(exc))
 
 
@@ -412,24 +446,26 @@ def _handle_mine(arguments: dict[str, Any]) -> str:
 def _handle_commit_from_clarification(arguments: dict[str, Any]) -> str:
     """Commit a decision from a clarification response."""
     try:
-        client = _client()
+        be = _backend()
         title = arguments.get("title") or f"Clarification: {arguments.get('chosen_option_id', '')}"
         scope = str(arguments.get("scope", ""))
         decision_type = str(arguments.get("decision_type", "interpretation"))
         rationale = arguments.get("rationale") or f"Selected option: {arguments.get('chosen_option_id', '')}"
 
-        dec = client.commit(
+        dec = be.commit(
             title=title,
             scope=scope,
             decision_type=decision_type,
             rationale=rationale,
             metadata={"clarification_option_id": arguments.get("chosen_option_id", "")},
         )
-        dec = client.update_status(dec.id, "active")
-        return _ok(dec.model_dump(mode="json"))
+        dec_dict = _to_dict(dec)
+        dec_id = dec_dict["id"] if isinstance(dec_dict, dict) else dec.id
+        dec = be.update_status(dec_id, "active")
+        return _ok(_to_dict(dec))
     except (KeyError, TypeError) as exc:
         return _err(f"Invalid arguments: {exc}")
-    except ContinuumError as exc:
+    except (ContinuumError, _HttpBackendError) as exc:
         return _err(str(exc))
 
 

@@ -3,6 +3,13 @@
 These tests exercise the MCP tool handlers directly (no stdio transport)
 against a temporary store directory, covering the full lifecycle:
   commit -> inspect -> resolve -> enforce -> supersede
+
+Plus new tests for:
+  - Idempotent commit (same scope + title twice → same decision)
+  - Auto-supersede (same key, different value → old superseded)
+  - Null-key safety (binding_key fallback from title)
+  - Effective bindings (inspect grouping by binding_key)
+  - HttpBackend (mocked HTTP)
 """
 
 from __future__ import annotations
@@ -27,6 +34,9 @@ def _use_temp_store(tmp_path, monkeypatch):
     """Point the MCP server at a temp store."""
     store = str(tmp_path / ".continuum")
     monkeypatch.setenv("CONTINUUM_STORE", store)
+    # Ensure we're in local mode (no hosted API)
+    monkeypatch.delenv("CONTINUUM_API_URL", raising=False)
+    monkeypatch.delenv("CONTINUUM_BASE_URL", raising=False)
 
 
 def _parse(result: str) -> dict:
@@ -102,6 +112,21 @@ class TestCommit:
         data = json.loads(raw)
         assert data["status"] == "error"
 
+    def test_commit_with_key(self):
+        result = _parse(_handle_commit({
+            "title": "response.verbosity.default = short",
+            "scope": "repo:test",
+            "decision_type": "preference",
+            "rationale": "Short by default.",
+            "key": "response.verbosity.default",
+            "activate": True,
+        }))
+        assert result["status"] == "active"
+        enf = result.get("enforcement") or {}
+        assert enf.get("key") == "response.verbosity.default"
+        assert enf.get("binding_key") == "response.verbosity.default"
+        assert enf.get("value_hash")  # non-empty
+
 
 # ------------------------------------------------------------------
 # inspect
@@ -128,8 +153,14 @@ class TestInspect:
             "activate": True,
         }))
         result = _parse(_handle_inspect({"scope": "repo:inspect-scope"}))
-        assert isinstance(result, list)
-        assert len(result) >= 1
+        # New shape: dict with bindings, conflict_notes, items
+        assert isinstance(result, dict)
+        assert "bindings" in result
+        assert "conflict_notes" in result
+        assert "items" in result
+        assert len(result["bindings"]) >= 1
+        # items should equal bindings (backward compat)
+        assert result["items"] == result["bindings"]
 
     def test_inspect_no_args(self):
         err = _parse_err(_handle_inspect({}))
@@ -250,6 +281,264 @@ class TestSupersede:
 
 
 # ------------------------------------------------------------------
+# Idempotent commit
+# ------------------------------------------------------------------
+
+
+class TestIdempotentCommit:
+    def test_same_commit_twice_returns_same_decision(self):
+        """Committing the same (scope, title, rationale) twice should be idempotent."""
+        args = {
+            "title": "response.verbosity.default = short_unless_requested",
+            "scope": "repo:idem-test",
+            "decision_type": "preference",
+            "rationale": "Short by default.",
+            "activate": True,
+        }
+        first = _parse(_handle_commit(args))
+        second = _parse(_handle_commit(args))
+
+        # Idempotent: same decision ID returned
+        assert first["id"] == second["id"]
+        assert first["status"] == "active"
+
+        # Inspect should show exactly one active binding
+        result = _parse(_handle_inspect({"scope": "repo:idem-test"}))
+        assert len(result["bindings"]) == 1
+        assert result["bindings"][0]["id"] == first["id"]
+
+    def test_idempotent_with_options(self):
+        """Idempotency should also work when options are identical."""
+        args = {
+            "title": "Pick approach",
+            "scope": "repo:idem-opts",
+            "decision_type": "preference",
+            "rationale": "Incremental wins.",
+            "options": [
+                {"id": "opt_a", "title": "Incremental", "selected": True},
+                {"id": "opt_b", "title": "Full rewrite", "selected": False},
+            ],
+            "activate": True,
+        }
+        first = _parse(_handle_commit(args))
+        second = _parse(_handle_commit(args))
+        assert first["id"] == second["id"]
+
+
+# ------------------------------------------------------------------
+# Auto-supersede
+# ------------------------------------------------------------------
+
+
+class TestAutoSupersede:
+    def test_same_key_different_value_auto_supersedes(self):
+        """Committing a different value for the same key should auto-supersede."""
+        first = _parse(_handle_commit({
+            "title": "response.verbosity.default = verbose",
+            "scope": "repo:auto-sup",
+            "decision_type": "preference",
+            "rationale": "Verbose mode.",
+            "key": "response.verbosity.default",
+            "activate": True,
+        }))
+        assert first["status"] == "active"
+
+        second = _parse(_handle_commit({
+            "title": "response.verbosity.default = concise",
+            "scope": "repo:auto-sup",
+            "decision_type": "preference",
+            "rationale": "Concise mode.",
+            "key": "response.verbosity.default",
+            "activate": True,
+        }))
+        assert second["status"] == "active"
+        assert second["id"] != first["id"]
+
+        # First should now be superseded
+        old = _parse(_handle_inspect({"decision_id": first["id"]}))
+        assert old["status"] == "superseded"
+
+        # Inspect should show only the second
+        result = _parse(_handle_inspect({"scope": "repo:auto-sup"}))
+        assert len(result["bindings"]) == 1
+        assert result["bindings"][0]["id"] == second["id"]
+
+
+# ------------------------------------------------------------------
+# Null-key safety
+# ------------------------------------------------------------------
+
+
+class TestNullKeySafety:
+    def test_no_explicit_key_uses_title_as_binding_key(self):
+        """Without explicit key, title should be used as binding_key."""
+        first = _parse(_handle_commit({
+            "title": "Use tabs not spaces",
+            "scope": "repo:null-key",
+            "decision_type": "preference",
+            "rationale": "Team convention.",
+            "activate": True,
+        }))
+
+        # binding_key should equal title when no key provided
+        enf = first.get("enforcement") or {}
+        assert enf.get("binding_key") == "Use tabs not spaces"
+        assert enf.get("key") is None
+
+        # Second identical commit should be idempotent
+        second = _parse(_handle_commit({
+            "title": "Use tabs not spaces",
+            "scope": "repo:null-key",
+            "decision_type": "preference",
+            "rationale": "Team convention.",
+            "activate": True,
+        }))
+        assert second["id"] == first["id"]
+
+        # Should have exactly one active
+        result = _parse(_handle_inspect({"scope": "repo:null-key"}))
+        assert len(result["bindings"]) == 1
+
+
+# ------------------------------------------------------------------
+# Inspect effective bindings
+# ------------------------------------------------------------------
+
+
+class TestInspectEffectiveBindings:
+    def test_one_winner_per_binding_key(self):
+        """Inspect should return one winner per binding_key."""
+        # Create two decisions with different keys
+        _parse(_handle_commit({
+            "title": "Prefer tabs",
+            "scope": "repo:eff-bind",
+            "decision_type": "preference",
+            "rationale": "Tabs.",
+            "key": "formatting.indent",
+            "activate": True,
+        }))
+        _parse(_handle_commit({
+            "title": "Use English",
+            "scope": "repo:eff-bind",
+            "decision_type": "preference",
+            "rationale": "English.",
+            "key": "response.language",
+            "activate": True,
+        }))
+
+        result = _parse(_handle_inspect({"scope": "repo:eff-bind"}))
+        assert len(result["bindings"]) == 2
+        binding_keys = {
+            (b.get("enforcement") or {}).get("binding_key")
+            for b in result["bindings"]
+        }
+        assert binding_keys == {"formatting.indent", "response.language"}
+        assert result["conflict_notes"] == []
+
+
+# ------------------------------------------------------------------
+# HttpBackend (unit test with mocked HTTP)
+# ------------------------------------------------------------------
+
+
+class TestHttpBackend:
+    def test_commit_calls_correct_endpoint(self, monkeypatch):
+        """HttpBackend.commit() should POST to /commit."""
+        from continuum_mcp.http_backend import HttpBackend
+
+        captured = {}
+
+        def mock_request(self, method, path, body=None, params=None):
+            captured["method"] = method
+            captured["path"] = path
+            captured["body"] = body
+            return {
+                "decision": {
+                    "id": "dec_mock123",
+                    "title": "Test",
+                    "status": "draft",
+                }
+            }
+
+        monkeypatch.setattr(HttpBackend, "_request", mock_request)
+        be = HttpBackend(base_url="http://localhost:8787", api_key="test-key")
+        result = be.commit(
+            title="Test",
+            scope="repo:test",
+            decision_type="preference",
+            rationale="Testing.",
+            key="test.key",
+        )
+        assert captured["method"] == "POST"
+        assert captured["path"] == "/commit"
+        assert captured["body"]["key"] == "test.key"
+        assert result["id"] == "dec_mock123"
+
+    def test_inspect_calls_correct_endpoint(self, monkeypatch):
+        """HttpBackend.inspect() should GET /inspect?scope=..."""
+        from continuum_mcp.http_backend import HttpBackend
+
+        captured = {}
+
+        def mock_request(self, method, path, body=None, params=None):
+            captured["method"] = method
+            captured["path"] = path
+            captured["params"] = params
+            return {
+                "binding": [{"id": "dec_1", "title": "T"}],
+                "conflict_notes": [],
+            }
+
+        monkeypatch.setattr(HttpBackend, "_request", mock_request)
+        be = HttpBackend(base_url="http://localhost:8787")
+        result = be.inspect("repo:test")
+        assert captured["method"] == "GET"
+        assert captured["path"] == "/inspect"
+        assert captured["params"] == {"scope": "repo:test"}
+        assert "bindings" in result
+
+    def test_update_status_calls_patch(self, monkeypatch):
+        """HttpBackend.update_status() should PATCH /decision/{id}/status."""
+        from continuum_mcp.http_backend import HttpBackend
+
+        captured = {}
+
+        def mock_request(self, method, path, body=None, params=None):
+            captured["method"] = method
+            captured["path"] = path
+            captured["body"] = body
+            return {"decision": {"id": "dec_abc", "status": "active"}}
+
+        monkeypatch.setattr(HttpBackend, "_request", mock_request)
+        be = HttpBackend(base_url="http://localhost:8787")
+        result = be.update_status("dec_abc", "active")
+        assert captured["method"] == "PATCH"
+        assert captured["path"] == "/decision/dec_abc/status"
+        assert captured["body"] == {"status": "active"}
+        assert result["status"] == "active"
+
+    def test_supersede_calls_post(self, monkeypatch):
+        """HttpBackend.supersede() should POST /supersede."""
+        from continuum_mcp.http_backend import HttpBackend
+
+        captured = {}
+
+        def mock_request(self, method, path, body=None, params=None):
+            captured["method"] = method
+            captured["path"] = path
+            captured["body"] = body
+            return {"decision": {"id": "dec_new", "status": "active"}}
+
+        monkeypatch.setattr(HttpBackend, "_request", mock_request)
+        be = HttpBackend(base_url="http://localhost:8787")
+        result = be.supersede(old_id="dec_old", new_title="V2")
+        assert captured["method"] == "POST"
+        assert captured["path"] == "/supersede"
+        assert captured["body"]["old_id"] == "dec_old"
+        assert result["status"] == "active"
+
+
+# ------------------------------------------------------------------
 # Full lifecycle (integration)
 # ------------------------------------------------------------------
 
@@ -272,9 +561,10 @@ class TestFullLifecycle:
         }))
         dec_id = dec["id"]
 
-        # 2. Inspect by scope
-        binding = _parse(_handle_inspect({"scope": scope}))
-        assert any(d["id"] == dec_id for d in binding)
+        # 2. Inspect by scope — returns new dict shape
+        result = _parse(_handle_inspect({"scope": scope}))
+        assert isinstance(result, dict)
+        assert any(d["id"] == dec_id for d in result["bindings"])
 
         # 3. Resolve
         resolved = _parse(_handle_resolve({
@@ -299,7 +589,7 @@ class TestFullLifecycle:
         assert new_dec["status"] == "active"
 
         # 6. Verify final state
-        final_binding = _parse(_handle_inspect({"scope": scope}))
-        active_ids = [d["id"] for d in final_binding]
+        final = _parse(_handle_inspect({"scope": scope}))
+        active_ids = [d["id"] for d in final["bindings"]]
         assert new_dec["id"] in active_ids
         assert dec_id not in active_ids  # Old decision should be superseded

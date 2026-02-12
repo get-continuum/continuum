@@ -79,6 +79,9 @@ class Enforcement(BaseModel):
     model_config = ConfigDict(use_enum_values=True)
 
     scope: str
+    key: Optional[str] = None
+    binding_key: Optional[str] = None
+    value_hash: Optional[str] = None
     decision_type: DecisionType
     supersedes: Optional[str] = None
     precedence: Optional[int] = None
