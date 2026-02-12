@@ -36,6 +36,67 @@ except ImportError:
 
 TOOLS: list[dict[str, Any]] = [
     {
+        "name": "continuum_mine",
+        "description": (
+            "Extract facts and decision candidates from conversation text. "
+            "Returns structured facts and candidates ready for review or commit."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "conversations": {
+                    "type": "array",
+                    "description": "List of conversation strings to mine.",
+                    "items": {"type": "string"},
+                },
+                "scope_default": {
+                    "type": "string",
+                    "description": "Default scope for mined candidates (e.g. repo:acme/backend).",
+                },
+                "semantic_context_refs": {
+                    "type": "array",
+                    "description": "Optional semantic context references.",
+                    "items": {"type": "string"},
+                },
+            },
+            "required": ["conversations", "scope_default"],
+        },
+    },
+    {
+        "name": "continuum_commit_from_clarification",
+        "description": (
+            "Commit a decision from a clarification response. "
+            "Takes the chosen option and scope to create an active decision."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "chosen_option_id": {
+                    "type": "string",
+                    "description": "ID of the selected clarification option.",
+                },
+                "scope": {
+                    "type": "string",
+                    "description": "Scope to commit the decision in.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Title for the decision (optional, defaults to option title).",
+                },
+                "decision_type": {
+                    "type": "string",
+                    "description": "Decision type (default: interpretation).",
+                    "default": "interpretation",
+                },
+                "rationale": {
+                    "type": "string",
+                    "description": "Rationale for the decision.",
+                },
+            },
+            "required": ["chosen_option_id", "scope"],
+        },
+    },
+    {
         "name": "continuum_inspect",
         "description": (
             "Inspect Continuum decisions. Provide either `decision_id` to fetch a single decision, "
@@ -310,7 +371,71 @@ def _handle_supersede(arguments: dict[str, Any]) -> str:
         return _err(str(exc))
 
 
+def _handle_mine(arguments: dict[str, Any]) -> str:
+    """Mine conversations for facts and decision candidates."""
+    try:
+        import sys
+        from pathlib import Path
+
+        # Add oss/miner to path
+        miner_root = Path(__file__).resolve().parents[4] / "miner"
+        if str(miner_root) not in sys.path:
+            sys.path.insert(0, str(miner_root))
+
+        from continuum_miner.extract_facts import extract_facts
+        from continuum_miner.extract_decision_candidates import extract_decision_candidates
+        from continuum_miner.dedupe_merge import dedupe_candidates
+
+        conversations = arguments.get("conversations", [])
+        scope_default = str(arguments.get("scope_default", ""))
+        semantic_refs = arguments.get("semantic_context_refs")
+
+        all_facts = []
+        for convo in conversations:
+            all_facts.extend(extract_facts(str(convo)))
+
+        candidates = extract_decision_candidates(
+            facts=all_facts,
+            scope_default=scope_default,
+            semantic_refs=semantic_refs,
+        )
+        deduped = dedupe_candidates(candidates)
+
+        return _ok({
+            "facts": [f.model_dump(mode="json") for f in all_facts],
+            "decision_candidates": [c.model_dump(mode="json") for c in deduped],
+        })
+    except Exception as exc:
+        return _err(str(exc))
+
+
+def _handle_commit_from_clarification(arguments: dict[str, Any]) -> str:
+    """Commit a decision from a clarification response."""
+    try:
+        client = _client()
+        title = arguments.get("title") or f"Clarification: {arguments.get('chosen_option_id', '')}"
+        scope = str(arguments.get("scope", ""))
+        decision_type = str(arguments.get("decision_type", "interpretation"))
+        rationale = arguments.get("rationale") or f"Selected option: {arguments.get('chosen_option_id', '')}"
+
+        dec = client.commit(
+            title=title,
+            scope=scope,
+            decision_type=decision_type,
+            rationale=rationale,
+            metadata={"clarification_option_id": arguments.get("chosen_option_id", "")},
+        )
+        dec = client.update_status(dec.id, "active")
+        return _ok(dec.model_dump(mode="json"))
+    except (KeyError, TypeError) as exc:
+        return _err(f"Invalid arguments: {exc}")
+    except ContinuumError as exc:
+        return _err(str(exc))
+
+
 _HANDLERS: dict[str, Any] = {
+    "continuum_mine": _handle_mine,
+    "continuum_commit_from_clarification": _handle_commit_from_clarification,
     "continuum_inspect": _handle_inspect,
     "continuum_resolve": _handle_resolve,
     "continuum_enforce": _handle_enforce,

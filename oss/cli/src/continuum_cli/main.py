@@ -305,5 +305,63 @@ def scopes() -> None:
         typer.echo(f"{scope:<17}{count}")
 
 
+# ------------------------------------------------------------------
+# mine
+# ------------------------------------------------------------------
+
+
+@app.command()
+def mine(
+    file: str = typer.Argument(..., help="Path to a JSON file containing conversation strings (list of strings)"),
+    scope: str = typer.Option(..., "--scope", "-s", help="Default scope for mined candidates"),
+    output_json: bool = typer.Option(True, "--json", help="Output as JSON"),
+) -> None:
+    """Extract facts and decision candidates from a conversation file."""
+    import sys
+    from pathlib import Path as _Path
+
+    try:
+        convo_path = _Path(file)
+        if not convo_path.exists():
+            typer.echo(f"Error: file not found: {file}", err=True)
+            raise typer.Exit(code=1)
+
+        conversations = json.loads(convo_path.read_text())
+        if isinstance(conversations, str):
+            conversations = [conversations]
+
+        # Import miner
+        miner_root = _Path(__file__).resolve().parents[4] / "miner"
+        if str(miner_root) not in sys.path:
+            sys.path.insert(0, str(miner_root))
+
+        from continuum_miner.extract_facts import extract_facts
+        from continuum_miner.extract_decision_candidates import extract_decision_candidates
+        from continuum_miner.dedupe_merge import dedupe_candidates
+
+        all_facts = []
+        for convo in conversations:
+            all_facts.extend(extract_facts(str(convo)))
+
+        candidates = extract_decision_candidates(
+            facts=all_facts,
+            scope_default=scope,
+        )
+        deduped = dedupe_candidates(candidates)
+
+        result = {
+            "facts": [f.model_dump(mode="json") for f in all_facts],
+            "decision_candidates": [c.model_dump(mode="json") for c in deduped],
+        }
+        typer.echo(json.dumps(result, indent=2, default=str))
+
+    except json.JSONDecodeError:
+        typer.echo("Error: file must contain valid JSON.", err=True)
+        raise typer.Exit(code=1)
+    except Exception as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()

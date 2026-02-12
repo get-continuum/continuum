@@ -57,6 +57,36 @@ CREATE INDEX IF NOT EXISTS idx_decisions_status
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash
     ON api_keys(key_hash);
+
+CREATE TABLE IF NOT EXISTS decision_evidence (
+    id              TEXT PRIMARY KEY,
+    decision_id     TEXT NOT NULL REFERENCES decisions(id),
+    source_type     TEXT NOT NULL DEFAULT 'conversation',
+    source_ref      TEXT NOT NULL DEFAULT '',
+    span_start      INTEGER NOT NULL DEFAULT 0,
+    span_end        INTEGER NOT NULL DEFAULT 0,
+    quote           TEXT NOT NULL DEFAULT '',
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidence_decision
+    ON decision_evidence(decision_id);
+
+CREATE TABLE IF NOT EXISTS candidates (
+    id              TEXT PRIMARY KEY,
+    workspace_id    TEXT NOT NULL REFERENCES workspaces(id),
+    payload_json    TEXT NOT NULL DEFAULT '{}',
+    risk            TEXT NOT NULL DEFAULT 'medium',
+    confidence      REAL NOT NULL DEFAULT 0.5,
+    status          TEXT NOT NULL DEFAULT 'pending',
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_candidates_workspace
+    ON candidates(workspace_id);
+
+CREATE INDEX IF NOT EXISTS idx_candidates_status
+    ON candidates(workspace_id, status);
 """
 
 

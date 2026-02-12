@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://getcontinuum.ai/schemas/clarification.v0.json",
+  "title": "Clarification Protocol v0",
+  "description": "Portable HITL clarification request/response payloads for cross-surface disambiguation.",
+  "definitions": {
+    "CandidateOption": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "source": { "type": "string", "default": "caller" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.5 },
+        "impact_preview": { "type": ["string", "null"], "description": "Human-readable preview of what happens if this option is chosen." }
+      },
+      "required": ["id", "title"]
+    },
+    "ClarificationRequest": {
+      "type": "object",
+      "properties": {
+        "question": { "type": "string", "description": "The clarification question to present." },
+        "candidates": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/CandidateOption" }
+        },
+        "context": { "type": "object", "default": {} },
+        "suggested_scope": { "type": ["string", "null"], "description": "Suggested scope for the resulting decision." },
+        "candidate_decision": { "type": ["object", "null"], "description": "Pre-filled decision contract payload." }
+      },
+      "required": ["question", "candidates"]
+    },
+    "ClarificationResponse": {
+      "type": "object",
+      "properties": {
+        "chosen_option_id": { "type": "string" },
+        "scope": { "type": "string" },
+        "commit": { "type": "boolean", "default": true }
+      },
+      "required": ["chosen_option_id", "scope"]
+    }
+  }
+}

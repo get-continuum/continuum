@@ -14,6 +14,9 @@ import type {
   EnforceParams,
   EnforcementResult,
   SupersedeParams,
+  MineParams,
+  MineResult,
+  ClarificationResponse,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -131,6 +134,29 @@ export class ContinuumClient {
     };
     const res = await this._post<{ decision: Decision }>("/supersede", body);
     return res.decision;
+  }
+
+  /** Commit a decision from a clarification response. */
+  async commitFromClarification(
+    params: ClarificationResponse & {
+      candidate_decision?: Record<string, unknown>;
+      title?: string;
+    },
+  ): Promise<{ decision: Decision; binding: Decision[] }> {
+    return this._post<{ decision: Decision; binding: Decision[] }>(
+      "/commit_from_clarification",
+      params,
+    );
+  }
+
+  /** Extract facts and decision candidates from conversations. */
+  async mine(params: MineParams): Promise<MineResult> {
+    const body = {
+      conversations: params.conversations,
+      scope_default: params.scope_default,
+      semantic_context_refs: params.semantic_context_refs ?? null,
+    };
+    return this._post<MineResult>("/mine", body);
   }
 
   /** Simple health check. */

@@ -5,14 +5,24 @@ import ScopePills from "@/components/ScopePills";
 import AmbiguityCard from "@/components/AmbiguityCard";
 import DecisionArtifact from "@/components/DecisionArtifact";
 import InspectorPanel from "@/components/InspectorPanel";
+import ConversationViewer from "@/components/ConversationViewer";
+import FactsPanel from "@/components/FactsPanel";
+import DecisionInbox from "@/components/DecisionInbox";
 import {
   fetchInspect,
   fetchResolve,
   fetchEnforce,
   fetchCommit,
+  fetchMine,
   patchDecisionStatus,
 } from "@/lib/api";
-import type { DecisionRecord, ResolveResult, EnforcementResult } from "@/lib/api";
+import type {
+  DecisionRecord,
+  ResolveResult,
+  EnforcementResult,
+  FactRecord,
+  DecisionCandidateRecord,
+} from "@/lib/api";
 
 const DECISION_TYPES = [
   "interpretation",
@@ -40,6 +50,15 @@ export default function PlaygroundPage() {
   const [lastEnforcement, setLastEnforcement] = useState<EnforcementResult | null>(null);
   const [selectedDecision, setSelectedDecision] = useState<DecisionRecord | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  // Mining state
+  const [activeTab, setActiveTab] = useState<"commit" | "mine">("commit");
+  const [minedFacts, setMinedFacts] = useState<FactRecord[]>([]);
+  const [minedCandidates, setMinedCandidates] = useState<DecisionCandidateRecord[]>([]);
+
+  // Flagship demo toggles
+  const [useHistory, setUseHistory] = useState(true);
+  const [useDecisions, setUseDecisions] = useState(true);
 
   useEffect(() => {
     setFormScope(primaryScope);
@@ -145,6 +164,59 @@ export default function PlaygroundPage() {
     }
   };
 
+  // -- Mining handlers --
+  const handleMine = async (conversations: string[]) => {
+    setLoading(true);
+    setStatusMessage(null);
+    try {
+      const data = await fetchMine(conversations, primaryScope);
+      setMinedFacts(data.facts);
+      setMinedCandidates(data.decision_candidates);
+      setStatusMessage(
+        `Mined ${data.facts.length} facts and ${data.decision_candidates.length} candidates.`
+      );
+    } catch (e: unknown) {
+      setStatusMessage(`Mining failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCommitCandidate = async (candidate: DecisionCandidateRecord) => {
+    setLoading(true);
+    setStatusMessage(null);
+    try {
+      const payload = candidate.candidate_decision;
+      await fetchCommit({
+        title: String(payload.title || candidate.title),
+        scope: String(payload.scope || candidate.scope_suggestion || primaryScope),
+        decision_type: String(payload.decision_type || candidate.decision_type),
+        rationale: String(payload.rationale || candidate.rationale),
+        activate: true,
+      });
+      setMinedCandidates((prev) => prev.filter((c) => c.id !== candidate.id));
+      setStatusMessage(`Committed: ${candidate.title}`);
+      await refreshInspector();
+    } catch (e: unknown) {
+      setStatusMessage(`Commit failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDismissCandidate = (candidateId: string) => {
+    setMinedCandidates((prev) => prev.filter((c) => c.id !== candidateId));
+  };
+
+  const handleCommitAllSafe = async () => {
+    const safe = minedCandidates.filter(
+      (c) => c.risk === "low" && c.confidence >= 0.9
+    );
+    for (const candidate of safe) {
+      await handleCommitCandidate(candidate);
+    }
+  };
+
   const handleSupersede = (decision: DecisionRecord) => {
     const enforcement = decision.enforcement;
     setTitle(`${decision.title} (v2)`);
@@ -180,8 +252,82 @@ export default function PlaygroundPage() {
           <ScopePills scopes={scopes} onChange={setScopes} />
         </div>
 
+        {/* Tab switcher */}
+        <div className="mt-4 flex gap-1 rounded-lg bg-white/[0.03] p-1 w-fit">
+          <button
+            onClick={() => setActiveTab("commit")}
+            className={[
+              "rounded-md px-4 py-1.5 text-xs font-medium transition-all",
+              activeTab === "commit"
+                ? "bg-teal-500/15 text-teal-400"
+                : "text-zinc-400 hover:text-zinc-200",
+            ].join(" ")}
+          >
+            Commit
+          </button>
+          <button
+            onClick={() => setActiveTab("mine")}
+            className={[
+              "rounded-md px-4 py-1.5 text-xs font-medium transition-all",
+              activeTab === "mine"
+                ? "bg-purple-500/15 text-purple-400"
+                : "text-zinc-400 hover:text-zinc-200",
+            ].join(" ")}
+          >
+            Mine
+          </button>
+        </div>
+
+        {/* Flagship demo toggles */}
+        <div className="mt-4 flex items-center gap-4 rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-2.5">
+          <span className="text-xs font-medium text-zinc-500">Demo Mode:</span>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useHistory}
+              onChange={(e) => setUseHistory(e.target.checked)}
+              className="accent-teal-500 h-3.5 w-3.5"
+            />
+            Conversation History
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useDecisions}
+              onChange={(e) => setUseDecisions(e.target.checked)}
+              className="accent-teal-500 h-3.5 w-3.5"
+            />
+            Continuum Decisions
+          </label>
+          {!useHistory && useDecisions && (
+            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+              No-History Mode
+            </span>
+          )}
+          {!useHistory && !useDecisions && (
+            <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-400">
+              Baseline (no memory)
+            </span>
+          )}
+        </div>
+
+        {/* Mining panel */}
+        {activeTab === "mine" && (
+          <div className="mt-4 space-y-4">
+            <ConversationViewer onExtract={handleMine} loading={loading} />
+            <FactsPanel facts={minedFacts} />
+            <DecisionInbox
+              candidates={minedCandidates}
+              onCommit={handleCommitCandidate}
+              onDismiss={handleDismissCandidate}
+              onCommitAllSafe={handleCommitAllSafe}
+              loading={loading}
+            />
+          </div>
+        )}
+
         {/* Commit Form */}
-        <div className="mt-6 rounded-xl border border-white/[0.08] bg-[#111115] p-5 shadow-sm">
+        {activeTab === "commit" && <div className="mt-6 rounded-xl border border-white/[0.08] bg-[#111115] p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-zinc-200">
             Commit a Decision
           </h2>
@@ -210,7 +356,7 @@ export default function PlaygroundPage() {
           <button onClick={handleCommit} disabled={loading || !title.trim()} className="mt-3 rounded-lg bg-teal-600 px-5 py-2 text-sm font-medium text-white transition-all hover:bg-teal-500 hover:shadow-lg hover:shadow-teal-600/20 disabled:opacity-50">
             Commit Decision
           </button>
-        </div>
+        </div>}
 
         {/* Resolve / Enforce */}
         <div className="mt-6 rounded-xl border border-white/[0.08] bg-[#111115] p-5 shadow-sm">

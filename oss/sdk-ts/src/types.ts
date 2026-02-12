@@ -22,6 +22,12 @@ export type DecisionType =
 /** How overrides are handled. */
 export type OverridePolicy = "invalid_by_default" | "warn" | "allow";
 
+/** Who issued the decision. */
+export type IssuerType = "human" | "agent" | "system";
+
+/** Authority level of the issuer. */
+export type AuthorityLevel = "admin" | "lead" | "member";
+
 /** Classification of an action being evaluated. */
 export type ActionType =
   | "code_change"
@@ -64,6 +70,8 @@ export interface Enforcement {
   supersedes?: string | null;
   precedence?: number | null;
   override_policy: OverridePolicy;
+  issuer_type?: IssuerType | null;
+  authority?: AuthorityLevel | null;
 }
 
 /** Core decision record — the atomic unit of institutional knowledge. */
@@ -112,6 +120,7 @@ export interface CandidateOption {
   title: string;
   source?: string;
   confidence?: number;
+  impact_preview?: string | null;
 }
 
 /** A request for the caller to clarify intent. */
@@ -119,6 +128,15 @@ export interface ClarificationRequest {
   question: string;
   candidates: CandidateOption[];
   context?: Record<string, unknown>;
+  suggested_scope?: string | null;
+  candidate_decision?: Record<string, unknown> | null;
+}
+
+/** A response to a clarification request. */
+export interface ClarificationResponse {
+  chosen_option_id: string;
+  scope: string;
+  commit?: boolean;
 }
 
 /** Result of the resolve operation. */
@@ -127,6 +145,57 @@ export interface ResolveResult {
   resolved_context?: Record<string, unknown> | null;
   clarification?: ClarificationRequest | null;
   matched_decision_id?: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Mining types
+// ---------------------------------------------------------------------------
+
+/** Risk classification for a mined decision candidate. */
+export type RiskLevel = "low" | "medium" | "high";
+
+/** A span of text that supports a fact or candidate. */
+export interface EvidenceSpan {
+  source_type: string;
+  source_ref: string;
+  span_start: number;
+  span_end: number;
+  quote: string;
+}
+
+/** An extracted fact from a conversation. */
+export interface Fact {
+  id: string;
+  category: string;
+  statement: string;
+  evidence: EvidenceSpan[];
+  confidence: number;
+}
+
+/** A candidate decision ready for human review or auto-commit. */
+export interface DecisionCandidate {
+  id: string;
+  title: string;
+  decision_type: string;
+  scope_suggestion: string;
+  risk: RiskLevel;
+  confidence: number;
+  evidence: EvidenceSpan[];
+  rationale: string;
+  candidate_decision: Record<string, unknown>;
+}
+
+/** Result of the mining pipeline. */
+export interface MineResult {
+  facts: Fact[];
+  decision_candidates: DecisionCandidate[];
+}
+
+/** Parameters for mining conversations. */
+export interface MineParams {
+  conversations: string[];
+  scope_default: string;
+  semantic_context_refs?: string[];
 }
 
 // ---------------------------------------------------------------------------

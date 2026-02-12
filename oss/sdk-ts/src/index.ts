@@ -44,6 +44,13 @@ export type {
   ResolveParams,
   EnforceParams,
   SupersedeParams,
+  MineParams,
+  // Mining types
+  RiskLevel,
+  EvidenceSpan,
+  Fact,
+  DecisionCandidate,
+  MineResult,
 } from "./types.js";
 
 // Client

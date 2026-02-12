@@ -1,0 +1,72 @@
+---
+title: "No-History Demo"
+description: "Prove persistent decisions work without conversation history"
+---
+
+# No-History Split-Run Demo
+
+This is the flagship demo that proves Continuum's differentiation: **decisions persist and enforce correctly even without conversation history**.
+
+## The Setup
+
+The Playground has two toggles:
+- **Conversation History**: ON/OFF
+- **Continuum Decisions**: ON/OFF
+
+## Demo Script 1: Travel Persistence
+
+### Session 1 — Mine and Commit
+
+1. Paste this conversation:
+```
+User: I'm planning a trip to Japan next month.
+User: Budget is $3000 max.
+User: I'm vegetarian and prefer trains over flights. No flying please.
+User: Always book hotels with free cancellation.
+```
+
+2. Click **Mine** tab → **Extract Facts & Candidates**
+3. Review the extracted facts (budget constraint, dietary preference, no-fly rule)
+4. Click **Commit all safe** or commit individually
+5. Check Inspector — decisions are now active
+
+### Session 2 — No History, Decisions ON
+
+1. Turn OFF "Conversation History"
+2. Keep "Continuum Decisions" ON
+3. Type: "Plan dinner in Tokyo"
+4. Click **Resolve** → The system respects the vegetarian constraint
+5. Type: "Book transportation from Tokyo to Kyoto"
+6. Click **Resolve** → The system suggests trains (no flights)
+
+### Baseline — No History, No Decisions
+
+1. Turn OFF both toggles
+2. Same queries produce generic, unconstrained responses
+3. No memory of preferences or constraints
+
+## Demo Script 2: YAML Semantic Ambiguity
+
+### Setup
+
+Two semantic models exist in the repo:
+- `examples/semantic-models/marketing.yaml` — Revenue = gross revenue
+- `examples/semantic-models/finance.yaml` — Revenue = net revenue
+
+### The Flow
+
+1. Ask: "revenue by country last week"
+2. Continuum detects ambiguity (two definitions of "revenue")
+3. Clarification card appears with both options
+4. Select "Net revenue (finance)" → commits as team decision
+5. Switch to Cursor (via MCP) → same query → resolves immediately to finance definition
+6. Switch to Slack → same query → no clarification needed
+
+## Why This Matters
+
+This demo is impossible to replicate with:
+- **ChatGPT**: No persistence across sessions without plugins
+- **Mem0**: Stores memories but doesn't enforce deterministically
+- **Custom prompts**: Drift over time, no audit trail
+
+Continuum's decisions are **signed, scoped, versioned, and deterministic** — they survive across surfaces and sessions without any conversation history.

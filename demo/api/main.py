@@ -95,6 +95,16 @@ class EnforceRequest(BaseModel):
     action: dict[str, Any] = Field(default_factory=dict)
 
 
+class EvidenceInput(BaseModel):
+    """Evidence span to link to a committed decision."""
+
+    source_type: str = "conversation"
+    source_ref: str = ""
+    span_start: int = 0
+    span_end: int = 0
+    quote: str = ""
+
+
 class CommitRequest(BaseModel):
     title: str
     scope: str
@@ -107,6 +117,15 @@ class CommitRequest(BaseModel):
     precedence: Optional[int] = None
     supersedes: Optional[str] = None
     activate: bool = False
+    evidence: Optional[list[EvidenceInput]] = None
+
+
+class MineRequest(BaseModel):
+    """Request body for the /mine endpoint."""
+
+    conversations: list[str]
+    scope_default: str
+    semantic_context_refs: Optional[list[str]] = None
 
 
 class CommitSimpleRequest(BaseModel):
@@ -127,6 +146,17 @@ class SupersedeRequest(BaseModel):
     metadata: Optional[dict[str, Any]] = None
     override_policy: Optional[str] = None
     precedence: Optional[int] = None
+
+
+class CommitFromClarificationRequest(BaseModel):
+    """Commit a decision from a clarification response."""
+
+    chosen_option_id: str
+    scope: str
+    candidate_decision: Optional[dict[str, Any]] = None
+    title: Optional[str] = None
+    decision_type: str = "interpretation"
+    rationale: Optional[str] = None
 
 
 class UpdateStatusRequest(BaseModel):
@@ -162,6 +192,73 @@ def health() -> dict[str, Any]:
     return {"ok": True, "mode": mode}
 
 
+@app.post("/mine")
+def mine_conversations(
+    req: MineRequest,
+    ws: WorkspaceContext = Depends(require_workspace),
+    backend: StorageBackend = Depends(get_backend),
+) -> dict[str, Any]:
+    """Extract facts and decision candidates from conversations."""
+    try:
+        import sys
+        from pathlib import Path
+
+        # Add oss/miner to path so the mining module is importable
+        miner_root = Path(__file__).resolve().parents[2] / "oss" / "miner"
+        if str(miner_root) not in sys.path:
+            sys.path.insert(0, str(miner_root))
+
+        from continuum_miner.types import MineResult
+        from continuum_miner.extract_facts import extract_facts
+        from continuum_miner.extract_decision_candidates import extract_decision_candidates
+        from continuum_miner.dedupe_merge import dedupe_candidates
+
+        all_facts = []
+        for convo in req.conversations:
+            all_facts.extend(extract_facts(convo))
+
+        candidates = extract_decision_candidates(
+            facts=all_facts,
+            scope_default=req.scope_default,
+            semantic_refs=req.semantic_context_refs,
+        )
+
+        deduped = dedupe_candidates(candidates)
+
+        # Apply auto-commit policy
+        policy_root = Path(__file__).resolve().parents[2] / "oss" / "policy"
+        if str(policy_root) not in sys.path:
+            sys.path.insert(0, str(policy_root))
+
+        from commit_policy import should_auto_commit
+
+        auto_committed = []
+        remaining = []
+        for cand in deduped:
+            cand_dict = cand.model_dump(mode="json")
+            if should_auto_commit(cand_dict):
+                # Auto-commit via backend
+                payload = cand.candidate_decision
+                dec = backend.commit(
+                    title=str(payload.get("title", cand.title)),
+                    scope=str(payload.get("scope", cand.scope_suggestion)),
+                    decision_type=str(payload.get("decision_type", cand.decision_type)),
+                    rationale=str(payload.get("rationale", cand.rationale)),
+                )
+                dec = backend.update_status(dec["id"], "active")
+                auto_committed.append(dec)
+            else:
+                remaining.append(cand_dict)
+
+        return {
+            "facts": [f.model_dump(mode="json") for f in all_facts],
+            "decision_candidates": remaining,
+            "auto_committed": auto_committed,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @app.post("/commit_simple")
 def commit_simple(
     req: CommitSimpleRequest,
@@ -187,7 +284,36 @@ def inspect(
     backend: StorageBackend = Depends(get_backend),
 ) -> dict[str, Any]:
     try:
-        return {"binding": backend.inspect(scope)}
+        binding = backend.inspect(scope)
+
+        # Detect conflicts using precedence engine
+        conflict_notes: list[dict[str, Any]] = []
+        if len(binding) > 1:
+            try:
+                import sys as _sys
+                from pathlib import Path as _Path
+
+                prec_root = _Path(__file__).resolve().parents[2] / "oss" / "precedence"
+                if str(prec_root) not in _sys.path:
+                    _sys.path.insert(0, str(prec_root))
+
+                from continuum_precedence.arbitrate import arbitrate
+                from continuum_precedence.explain import explain_winner
+
+                # Group decisions by title similarity to find conflicts
+                result = arbitrate(binding, scope=scope)
+                if result.conflict_detected:
+                    conflict_notes.append({
+                        "type": "precedence_conflict",
+                        "winner_id": result.winner.get("id"),
+                        "loser_ids": [l.get("id") for l in result.losers],
+                        "explanation": explain_winner(result),
+                        "scores": result.scores,
+                    })
+            except Exception:
+                pass  # Graceful degradation if precedence module unavailable
+
+        return {"binding": binding, "conflict_notes": conflict_notes}
     except ContinuumError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -224,6 +350,39 @@ def enforce(
     try:
         res = backend.enforce(action=req.action, scope=req.scope)
         return {"enforcement": res}
+    except ContinuumError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/commit_from_clarification")
+def commit_from_clarification(
+    req: CommitFromClarificationRequest,
+    ws: WorkspaceContext = Depends(require_workspace),
+    backend: StorageBackend = Depends(get_backend),
+) -> dict[str, Any]:
+    """Commit a decision from a clarification selection."""
+    try:
+        # Use candidate_decision if provided, otherwise build from request fields
+        payload = req.candidate_decision or {}
+        title = req.title or str(payload.get("title", f"Clarification: {req.chosen_option_id}"))
+        scope = req.scope or str(payload.get("scope", ""))
+        decision_type = str(payload.get("decision_type", req.decision_type))
+        rationale = req.rationale or str(
+            payload.get("rationale", f"Selected option: {req.chosen_option_id}")
+        )
+
+        dec = backend.commit(
+            title=title,
+            scope=scope,
+            decision_type=decision_type,
+            rationale=rationale,
+            metadata={"clarification_option_id": req.chosen_option_id},
+        )
+        dec = backend.update_status(dec["id"], "active")
+
+        # Return updated inspect
+        binding = backend.inspect(scope)
+        return {"decision": dec, "binding": binding}
     except ContinuumError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -283,6 +442,67 @@ def list_decisions(
     try:
         decs = backend.list_decisions(scope=scope if scope else None)
         return {"decisions": decs}
+    except ContinuumError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/graph/decisions")
+def graph_decisions(
+    scope: Optional[str] = None,
+    backend: StorageBackend = Depends(get_backend),
+) -> dict[str, Any]:
+    """Return decision graph data: nodes (decisions + scopes) and edges (supersedes, scope relationships)."""
+    try:
+        decs = backend.list_decisions(scope=scope if scope else None)
+
+        nodes: list[dict[str, Any]] = []
+        edges: list[dict[str, Any]] = []
+        scope_nodes: set[str] = set()
+
+        for dec in decs:
+            # Decision node
+            nodes.append({
+                "id": dec["id"],
+                "type": "decision",
+                "data": {
+                    "title": dec.get("title", ""),
+                    "status": dec.get("status", ""),
+                    "decision_type": (dec.get("enforcement") or {}).get("decision_type", ""),
+                    "created_at": dec.get("created_at", ""),
+                },
+            })
+
+            # Scope node
+            enforcement = dec.get("enforcement") or {}
+            dec_scope = enforcement.get("scope", "")
+            if dec_scope and dec_scope not in scope_nodes:
+                scope_nodes.add(dec_scope)
+                nodes.append({
+                    "id": f"scope:{dec_scope}",
+                    "type": "scope",
+                    "data": {"scope": dec_scope},
+                })
+
+            # Edge: decision -> scope
+            if dec_scope:
+                edges.append({
+                    "id": f"e-{dec['id']}-scope:{dec_scope}",
+                    "source": dec["id"],
+                    "target": f"scope:{dec_scope}",
+                    "type": "applies_to",
+                })
+
+            # Edge: supersedes
+            supersedes = enforcement.get("supersedes")
+            if supersedes:
+                edges.append({
+                    "id": f"e-{dec['id']}-sup-{supersedes}",
+                    "source": dec["id"],
+                    "target": supersedes,
+                    "type": "supersedes",
+                })
+
+        return {"nodes": nodes, "edges": edges}
     except ContinuumError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

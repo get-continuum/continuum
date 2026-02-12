@@ -1,0 +1,57 @@
+# Finance Semantic Model
+# Defines metrics and entities from a finance/accounting perspective
+
+model:
+  name: finance
+  version: "1.0"
+
+metrics:
+  revenue:
+    definition: "Net revenue after returns, refunds, and discounts"
+    sql: "SUM(net_amount)"
+    table: "finance.transactions"
+    grain: "transaction"
+    notes: "Strictly net; does NOT include pending or disputed amounts"
+
+  revenue_by_country:
+    definition: "Net revenue grouped by legal entity country"
+    sql: "SUM(net_amount) GROUP BY entity_country"
+    table: "finance.transactions"
+    dimensions:
+      - entity_country
+      - transaction_date
+
+  arr:
+    definition: "Annual recurring revenue based on active subscriptions"
+    sql: "SUM(monthly_amount * 12)"
+    table: "finance.subscriptions"
+    filter: "status = 'active'"
+
+entities:
+  transaction:
+    primary_key: transaction_id
+    table: "finance.transactions"
+    attributes:
+      - net_amount
+      - gross_amount
+      - transaction_date
+      - entity_country
+      - customer_id
+
+  subscription:
+    primary_key: subscription_id
+    table: "finance.subscriptions"
+    foreign_keys:
+      transaction: customer_id
+    attributes:
+      - monthly_amount
+      - status
+      - start_date
+      - entity_country
+
+joins:
+  transaction_subscription:
+    from: transaction
+    to: subscription
+    on: "transaction.customer_id = subscription.customer_id"
+    type: "many_to_many"

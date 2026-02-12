@@ -111,8 +111,63 @@ export type ApiKey = {
   hash_prefix?: string;
 };
 
+// -- Mining types ---------------------------------------------------------
+
+export type EvidenceSpan = {
+  source_type: string;
+  source_ref: string;
+  span_start: number;
+  span_end: number;
+  quote: string;
+};
+
+export type FactRecord = {
+  id: string;
+  category: string;
+  statement: string;
+  evidence: EvidenceSpan[];
+  confidence: number;
+};
+
+export type DecisionCandidateRecord = {
+  id: string;
+  title: string;
+  decision_type: string;
+  scope_suggestion: string;
+  risk: string;
+  confidence: number;
+  evidence: EvidenceSpan[];
+  rationale: string;
+  candidate_decision: Record<string, unknown>;
+};
+
+export type MineResultResponse = {
+  facts: FactRecord[];
+  decision_candidates: DecisionCandidateRecord[];
+};
+
+export function fetchMine(
+  conversations: string[],
+  scopeDefault: string,
+  semanticContextRefs?: string[]
+) {
+  return postJson<MineResultResponse>("/mine", {
+    conversations,
+    scope_default: scopeDefault,
+    semantic_context_refs: semanticContextRefs,
+  });
+}
+
+export type ConflictNote = {
+  type: string;
+  winner_id?: string;
+  loser_ids?: string[];
+  explanation?: string;
+  scores?: Record<string, number>;
+};
+
 export function fetchInspect(scope: string) {
-  return getJson<{ binding: DecisionRecord[] }>(
+  return getJson<{ binding: DecisionRecord[]; conflict_notes?: ConflictNote[] }>(
     `/inspect?scope=${encodeURIComponent(scope)}`
   );
 }
@@ -160,6 +215,40 @@ export function createApiKey(name: string) {
 
 export function revokeApiKey(keyId: string) {
   return deleteJson<{ deleted: boolean }>(`/api-keys/${keyId}`);
+}
+
+export function fetchCommitFromClarification(body: {
+  chosen_option_id: string;
+  scope: string;
+  candidate_decision?: Record<string, unknown>;
+  title?: string;
+  decision_type?: string;
+  rationale?: string;
+}) {
+  return postJson<{ decision: DecisionRecord; binding: DecisionRecord[] }>(
+    "/commit_from_clarification",
+    body
+  );
+}
+
+export type GraphNode = {
+  id: string;
+  type: "decision" | "scope";
+  data: Record<string, unknown>;
+};
+
+export type GraphEdge = {
+  id: string;
+  source: string;
+  target: string;
+  type: "applies_to" | "supersedes" | "overrides";
+};
+
+export function fetchGraph(scope?: string) {
+  const qs = scope ? `?scope=${encodeURIComponent(scope)}` : "";
+  return getJson<{ nodes: GraphNode[]; edges: GraphEdge[] }>(
+    `/graph/decisions${qs}`
+  );
 }
 
 export function fetchDecisions(scope?: string) {

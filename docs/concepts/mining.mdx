@@ -1,0 +1,112 @@
+---
+title: "Mining: Facts & Decision Candidates"
+description: "Extract structured decisions from conversations, feedback, and context"
+---
+
+# Mining
+
+Mining is the process of extracting **facts** and **decision candidates** from unstructured conversations. Instead of requiring humans to manually identify and commit decisions, the mining pipeline does the heavy lifting.
+
+## How it works
+
+```
+Conversation → Extract Facts → Map to Candidates → De-duplicate → Review / Auto-commit
+```
+
+### 1. Fact Extraction
+
+The miner scans conversation text for patterns that indicate:
+
+| Category | Example Pattern | Confidence |
+|----------|----------------|------------|
+| **Preference** | "I prefer trains over flights" | 85% |
+| **Constraint** | "Budget is $3000 max" | 90% |
+| **Rejection** | "Don't use Redux" | 90% |
+| **Interpretation** | "By revenue we mean net_revenue" | 85% |
+| **Behavior Rule** | "Always book with free cancellation" | 80% |
+
+Each fact carries an **evidence span** pointing back to the exact quote in the conversation.
+
+### 2. Decision Candidates
+
+Facts are mapped to decision candidates with:
+- **Pre-filled decision contract** (title, scope, type, rationale)
+- **Risk level** (low, medium, high)
+- **Confidence score** (0.0 - 1.0)
+- **Evidence chain** (traceable to source)
+
+### 3. Auto-commit Policy
+
+Low-risk candidates with high confidence can be auto-committed:
+- Risk = `low` AND confidence >= 0.9
+- Decision type is `behavior_rule` or `preference`
+
+All other candidates require human review.
+
+## API
+
+```bash
+POST /mine
+```
+
+```json
+{
+  "conversations": ["User: I prefer vegetarian food. Budget max $200..."],
+  "scope_default": "user:alice"
+}
+```
+
+Response:
+```json
+{
+  "facts": [...],
+  "decision_candidates": [...],
+  "auto_committed": [...]
+}
+```
+
+## SDK
+
+<CodeGroup>
+
+```python Python
+from continuum.client import ContinuumClient
+
+# Via the HTTP API
+import requests
+result = requests.post("http://localhost:8787/mine", json={
+    "conversations": [convo_text],
+    "scope_default": "user:alice",
+}).json()
+```
+
+```typescript TypeScript
+import { ContinuumClient } from "@get-continuum/sdk";
+
+const client = new ContinuumClient();
+const result = await client.mine({
+  conversations: [convoText],
+  scope_default: "user:alice",
+});
+```
+
+</CodeGroup>
+
+## MCP Tool
+
+```
+continuum_mine(conversations=["..."], scope_default="repo:myapp")
+```
+
+## CLI
+
+```bash
+continuum mine --file convo.json --scope user:alice
+```
+
+## UI
+
+The Playground has a **Mine** tab where you can paste conversations and:
+1. See extracted facts with evidence highlights
+2. Review decision candidates in the inbox
+3. Commit individually or batch-commit safe candidates

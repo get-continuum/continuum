@@ -1,0 +1,66 @@
+---
+title: "Conflict Resolution & Precedence"
+description: "Deterministic arbitration when decisions compete"
+---
+
+# Conflict Resolution
+
+When multiple active decisions apply to the same scope, Continuum uses a **deterministic precedence engine** to select the winner — no ML, no heuristics, no randomness.
+
+## Ranking Factors
+
+The precedence engine evaluates competing decisions using a composite score:
+
+| Factor | Weight | Description |
+|--------|--------|-------------|
+| **Explicit precedence** | Highest | The `precedence` field on the decision (integer, higher wins) |
+| **Scope specificity** | High | More specific scopes win (`user:alice` > `team:eng` > `org:acme`) |
+| **Authority** | Medium | `admin` > `lead` > `member` issuer authority |
+| **Recency** | Tie-breaker | More recently created decisions win ties |
+
+## Scope Hierarchy
+
+Scopes have a natural hierarchy rank:
+
+```
+user (60) > channel (50) > team (40) > org (30) > folder (25) > repo (20) > workflow (15) > global (10)
+```
+
+A `user:alice` decision always beats a `team:eng` decision for the same topic, because user-scope is more specific to the individual.
+
+## Human-Readable Explanations
+
+Every arbitration produces a plain-English explanation:
+
+> Decision "Revenue means net_revenue" (dec_abc123) wins among 2 competing decisions.
+> Its scope "user:alice" is more specific than "team:eng" (score 70 vs 50).
+
+## Inspector Integration
+
+The Inspector page shows a **"Competing Decisions Detected"** banner when conflicts exist, with:
+- Winner and losers with scores
+- Full explanation of why the winner was selected
+- Option to **Promote** (create a superseding decision in a higher scope)
+
+## API
+
+The `/inspect` endpoint now returns `conflict_notes` alongside the binding set:
+
+```json
+{
+  "binding": [...],
+  "conflict_notes": [
+    {
+      "type": "precedence_conflict",
+      "winner_id": "dec_abc123",
+      "loser_ids": ["dec_def456"],
+      "explanation": "Decision X wins because...",
+      "scores": { "dec_abc123": 70.0, "dec_def456": 50.0 }
+    }
+  ]
+}
+```
+
+## Design Principle
+
+Enforcement remains **deterministic**. Given the same set of decisions and the same scope, the same winner is always selected. This is what makes Continuum trustworthy for production use.

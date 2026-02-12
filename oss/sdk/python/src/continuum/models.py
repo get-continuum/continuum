@@ -57,6 +57,22 @@ class DecisionContext(BaseModel):
     actor: Optional[str] = None
 
 
+class IssuerType(str, Enum):
+    """Who issued the decision."""
+
+    human = "human"
+    agent = "agent"
+    system = "system"
+
+
+class AuthorityLevel(str, Enum):
+    """Authority level of the issuer."""
+
+    admin = "admin"
+    lead = "lead"
+    member = "member"
+
+
 class Enforcement(BaseModel):
     """Enforcement rules for a decision."""
 
@@ -67,6 +83,8 @@ class Enforcement(BaseModel):
     supersedes: Optional[str] = None
     precedence: Optional[int] = None
     override_policy: OverridePolicy = OverridePolicy.invalid_by_default
+    issuer_type: Optional[IssuerType] = None
+    authority: Optional[AuthorityLevel] = None
 
 
 class Decision(BaseModel):

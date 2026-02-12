@@ -29,7 +29,10 @@
         "pages": [
           "index",
           "concepts/decision-contracts",
-          "concepts/scope-precedence"
+          "concepts/scope-precedence",
+          "concepts/mining",
+          "concepts/clarification-protocol",
+          "concepts/conflict-resolution"
         ]
       },
       {
@@ -53,6 +56,7 @@
         "group": "Cookbooks",
         "pages": [
           "cookbooks/flagship-same-prompt",
+          "cookbooks/no-history-demo",
           "cookbooks/plan-mode-complement",
           "cookbooks/multi-agent-code",
           "cookbooks/sqlite-memory"

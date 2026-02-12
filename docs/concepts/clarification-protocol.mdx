@@ -1,0 +1,75 @@
+---
+title: "Clarification Protocol"
+description: "Portable HITL disambiguation across UI, CLI, MCP, and Slack"
+---
+
+# Clarification Protocol
+
+When Continuum encounters ambiguity — a query that could match multiple interpretations — it doesn't guess. It asks for clarification through a **portable protocol** that works identically across all surfaces.
+
+## The Flow
+
+```
+Query → Resolve → Ambiguity Detected → ClarificationRequest → Human Choice → Commit Decision → Future queries resolved
+```
+
+## ClarificationRequest Shape
+
+Every surface receives the same structured payload:
+
+```json
+{
+  "question": "Multiple definitions exist for 'revenue'. Which one?",
+  "candidates": [
+    {
+      "id": "opt_marketing",
+      "title": "Gross revenue (marketing)",
+      "impact_preview": "Uses marketing.orders table, includes returns",
+      "confidence": 0.8
+    },
+    {
+      "id": "opt_finance",
+      "title": "Net revenue (finance)",
+      "impact_preview": "Uses finance.transactions table, excludes returns",
+      "confidence": 0.8
+    }
+  ],
+  "suggested_scope": "team:analytics",
+  "candidate_decision": {
+    "title": "Revenue means net_revenue",
+    "scope": "team:analytics",
+    "decision_type": "interpretation"
+  }
+}
+```
+
+## Surface Implementations
+
+| Surface | Rendering | Commit |
+|---------|-----------|--------|
+| **Demo UI** | ClarificationCard with radio buttons + impact preview | Button click |
+| **CLI** | Text menu with numbered options | User input |
+| **MCP/Cursor** | Tool returns JSON; LLM presents to user | `continuum_commit_from_clarification` |
+| **Slack** | Block Kit interactive buttons | Button click → webhook |
+| **Custom GPT** | Action returns JSON; GPT presents options | Action call |
+
+## Committing from Clarification
+
+```bash
+POST /commit_from_clarification
+```
+
+```json
+{
+  "chosen_option_id": "opt_finance",
+  "scope": "team:analytics",
+  "title": "Revenue means net_revenue (finance)",
+  "rationale": "Team decided to use finance definition"
+}
+```
+
+Once committed, the decision is **permanent and enforced** — the same query from any surface will resolve deterministically without asking again.
+
+## Why This Matters
+
+Traditional chatbots ask the same clarifying question every session. Continuum asks **once**, commits the answer as a decision, and enforces it forever — across every surface, without conversation history.

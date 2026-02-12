@@ -3,14 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import ScopePills from "@/components/ScopePills";
 import DecisionArtifact from "@/components/DecisionArtifact";
+import ConflictDrawer from "@/components/ConflictDrawer";
 import { fetchInspect } from "@/lib/api";
-import type { DecisionRecord } from "@/lib/api";
+import type { DecisionRecord, ConflictNote } from "@/lib/api";
 
 export default function InspectorPage() {
   const [scopes, setScopes] = useState(["repo:continuum-demo"]);
   const [binding, setBinding] = useState<DecisionRecord[]>([]);
+  const [conflictNotes, setConflictNotes] = useState<ConflictNote[]>([]);
   const [selected, setSelected] = useState<DecisionRecord | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showConflicts, setShowConflicts] = useState(true);
 
   const primaryScope = scopes[0] || "";
 
@@ -20,8 +23,11 @@ export default function InspectorPage() {
     try {
       const data = await fetchInspect(primaryScope);
       setBinding(data.binding ?? []);
+      setConflictNotes(data.conflict_notes ?? []);
+      setShowConflicts(true);
     } catch {
       setBinding([]);
+      setConflictNotes([]);
     } finally {
       setLoading(false);
     }
@@ -54,6 +60,17 @@ export default function InspectorPage() {
           {binding.length} decision{binding.length !== 1 ? "s" : ""}
         </span>
       </p>
+
+      {/* Conflict banner */}
+      {showConflicts && conflictNotes.length > 0 && (
+        <div className="mt-4">
+          <ConflictDrawer
+            conflictNotes={conflictNotes}
+            decisions={binding}
+            onClose={() => setShowConflicts(false)}
+          />
+        </div>
+      )}
 
       <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
         {binding.length === 0 && !loading && (

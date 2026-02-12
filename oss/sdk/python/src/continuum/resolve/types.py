@@ -14,6 +14,7 @@ class CandidateOption(BaseModel):
     title: str
     source: str = "caller"
     confidence: float = 0.5
+    impact_preview: Optional[str] = None
 
 
 class ClarificationRequest(BaseModel):
@@ -22,6 +23,16 @@ class ClarificationRequest(BaseModel):
     question: str
     candidates: list[CandidateOption]
     context: dict = {}
+    suggested_scope: Optional[str] = None
+    candidate_decision: Optional[dict] = None
+
+
+class ClarificationResponse(BaseModel):
+    """A response to a clarification request."""
+
+    chosen_option_id: str
+    scope: str
+    commit: bool = True
 
 
 class ResolveResult(BaseModel):

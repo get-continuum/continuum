@@ -246,6 +246,31 @@ export default function HierarchyExplorer({
         </Section>
       )}
 
+      {/* Evidence */}
+      {decision.metadata && Array.isArray((decision.metadata as Record<string, unknown>).evidence) && (
+        <Section title="Evidence" defaultOpen={true}>
+          <div className="space-y-2">
+            {((decision.metadata as Record<string, unknown>).evidence as Array<{source_type?: string; quote?: string}>).map((ev, idx) => (
+              <div
+                key={idx}
+                className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-purple-500/15 px-2 py-0.5 text-[10px] font-medium text-purple-400">
+                    {ev.source_type || "conversation"}
+                  </span>
+                </div>
+                {ev.quote && (
+                  <p className="mt-1.5 text-xs italic text-zinc-400">
+                    &ldquo;{ev.quote}&rdquo;
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
       {/* Enforcement */}
       {enforcement && (
         <Section title="Enforcement" defaultOpen={true}>

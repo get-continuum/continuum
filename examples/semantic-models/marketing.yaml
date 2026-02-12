@@ -1,0 +1,54 @@
+# Marketing Semantic Model
+# Defines metrics and entities from a marketing perspective
+
+model:
+  name: marketing
+  version: "1.0"
+
+metrics:
+  revenue:
+    definition: "Total gross revenue including returns and discounts"
+    sql: "SUM(order_total)"
+    table: "marketing.orders"
+    grain: "order"
+    notes: "Includes all revenue before deductions"
+
+  revenue_by_country:
+    definition: "Gross revenue grouped by customer billing country"
+    sql: "SUM(order_total) GROUP BY billing_country"
+    table: "marketing.orders"
+    dimensions:
+      - billing_country
+      - order_date
+
+  customer_count:
+    definition: "Count of unique customers who made at least one purchase"
+    sql: "COUNT(DISTINCT customer_id)"
+    table: "marketing.customers"
+
+entities:
+  customer:
+    primary_key: customer_id
+    table: "marketing.customers"
+    attributes:
+      - name
+      - email
+      - billing_country
+      - signup_date
+
+  order:
+    primary_key: order_id
+    table: "marketing.orders"
+    foreign_keys:
+      customer: customer_id
+    attributes:
+      - order_total
+      - order_date
+      - billing_country
+
+joins:
+  customer_orders:
+    from: customer
+    to: order
+    on: "customer.customer_id = order.customer_id"
+    type: "one_to_many"

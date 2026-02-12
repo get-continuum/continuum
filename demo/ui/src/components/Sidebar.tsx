@@ -30,6 +30,17 @@ function InspectorIcon() {
   );
 }
 
+function GraphIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="4" cy="4" r="2" stroke="currentColor" strokeWidth="1.25" />
+      <circle cx="12" cy="4" r="2" stroke="currentColor" strokeWidth="1.25" />
+      <circle cx="8" cy="12" r="2" stroke="currentColor" strokeWidth="1.25" />
+      <path d="M5.5 5.5L7 10.5M10.5 5.5L9 10.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function IntegrationsIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -52,6 +63,7 @@ const NAV_ITEMS = [
   { href: "/playground", label: "Playground", Icon: PlayIcon },
   { href: "/decisions", label: "Decisions", Icon: DecisionsIcon },
   { href: "/inspector", label: "Inspector", Icon: InspectorIcon },
+  { href: "/graph", label: "Graph", Icon: GraphIcon },
   { href: "/integrations", label: "Integrations", Icon: IntegrationsIcon },
   { href: "/settings", label: "Settings", Icon: SettingsIcon },
 ];
